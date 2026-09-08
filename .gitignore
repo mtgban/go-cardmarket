@@ -30,3 +30,8 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# command build and output artifacts
+cmd/mkmcatalog/mkmcatalog
+cmd/mkmpriceguide/mkmpriceguide
+cmd/*/*.json

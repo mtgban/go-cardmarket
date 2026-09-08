@@ -1,0 +1,46 @@
+# Style rules the tree already satisfies, so that a regression is caught at
+# review time rather than found in a later sweep. Kept in step with
+# go-mtgban's, which is where this package came from.
+
+ignoreGeneratedHeader = false
+severity = "error"
+confidence = 0.8
+errorCode = 1
+warningCode = 1
+
+[rule.blank-imports]
+[rule.context-as-argument]
+[rule.context-keys-type]
+[rule.dot-imports]
+[rule.empty-block]
+[rule.error-naming]
+[rule.error-return]
+[rule.error-strings]
+[rule.exported]
+[rule.errorf]
+[rule.increment-decrement]
+[rule.indent-error-flow]
+[rule.package-comments]
+[rule.range]
+[rule.receiver-naming]
+[rule.redefines-builtin-id]
+[rule.superfluous-else]
+[rule.time-naming]
+[rule.unexported-return]
+[rule.unnecessary-format]
+[rule.unchecked-type-assertion]
+[rule.use-any]
+[rule.use-waitgroup-go]
+[rule.use-errors-new]
+# The families named here report nothing a caller could act on: a failed
+# write to stderr, a Builder and a hash that both document a nil error, a
+# Close on a body already read, and a Discard the Peek before it just proved
+# will fit. The buffering writers are here for the same reason - a command
+# printing a report to stdout has already shown a short one by the time the
+# flush says so, and the writes into them are ignored anyway. Naming them
+# keeps a real unhandled error from being lost among the sixty that are not.
+[rule.unhandled-error]
+  arguments = ["fmt.Fprint.*", "strings.Builder.*", "io.Writer.Write", "io.Closer.Close", "os.File.Close", "bufio.Reader.Discard", "encoding/csv.Writer.Write", "text/tabwriter.Writer.Flush", "os.Setenv"]
+[rule.unreachable-code]
+[rule.var-declaration]
+[rule.var-naming]

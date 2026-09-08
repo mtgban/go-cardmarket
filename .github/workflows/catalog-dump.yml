@@ -1,0 +1,97 @@
+name: Catalog dump
+run-name: Catalog dump (${{ inputs.game || 'all' }})
+
+# The games MTGJSON does not speak get their Cardmarket catalog from this
+# crawl: once a day, like MTGJSON's own file, each is walked through the API
+# and published beside the game's datastore, and the price runs read the file
+# instead of crawling. Magic's comes from MTGJSON and is not built here.
+on:
+  schedule:
+    - cron: "14 3 * * *"
+  workflow_dispatch:
+    inputs:
+      game:
+        description: Which game to dump
+        type: choice
+        default: all
+        options:
+          - all
+          - lorcana
+          - riftbound
+          - onepiece
+          - pokemon
+          - yugioh
+          - fleshandblood
+
+permissions:
+  contents: read
+
+jobs:
+  # Scheduled runs dump everything, manual runs honor the selection. The
+  # matrix context is not available in a job level if, so the selection is
+  # applied by building the matrix itself.
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+    steps:
+      - id: select
+        env:
+          SELECTED: ${{ inputs.game || 'all' }}
+        run: |
+          games='["lorcana","riftbound","onepiece","pokemon","yugioh","fleshandblood"]'
+          if [ "$SELECTED" = all ]; then
+            selection=$(jq -c . <<< "$games")
+          else
+            selection=$(jq -c --arg name "$SELECTED" \
+              '[.[] | select(. == $name)]' <<< "$games")
+          fi
+          echo "Dumping: $selection"
+          echo "matrix=$selection" >> "$GITHUB_OUTPUT"
+
+  dump:
+    needs: select
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      # One game at a time to keep the API request rate down
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        game: ${{ fromJSON(needs.select.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build mkmcatalog
+        run: go build ./cmd/mkmcatalog
+
+      - name: Walk the ${{ matrix.game }} catalog
+        env:
+          MKM_APP_TOKEN: ${{ secrets.MKM_APP_TOKEN }}
+          MKM_APP_SECRET: ${{ secrets.MKM_APP_SECRET }}
+        run: ./mkmcatalog -game ${{ matrix.game }} -output cardmarket_catalog.json
+
+      - name: Compress
+        run: xz -T0 cardmarket_catalog.json
+
+      # The B2 upload overwrites the same object daily, so the run keeps
+      # the only per-run history: the exact catalog a price run consumed,
+      # downloadable without bucket credentials, surviving a failed upload.
+      - name: Keep a copy on the run
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.game }}-cardmarket_catalog.json.xz
+          path: cardmarket_catalog.json.xz
+          retention-days: 7
+
+      - name: Upload to B2
+        env:
+          B2_APPLICATION_KEY_ID: ${{ secrets.B2_APPLICATION_KEY_ID_DATASTORE }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY_DATASTORE }}
+        run: |
+          pipx install b2
+          b2 file upload mtgban-datastore cardmarket_catalog.json.xz ${{ matrix.game }}/cardmarket_catalog.json.xz
