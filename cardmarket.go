@@ -51,16 +51,21 @@ type Client struct {
 // NewClient returns a client signing with the given app credentials.
 //
 // The API is very sensitive to concurrent requests and answers a burst with
-// 429s, so the retry is deliberately patient: up to 20 attempts, each waiting
-// a jittered 2 to 10 seconds multiplied by the attempt number. That is up to
-// half an hour of backoff for one unlucky request, which is the intended
-// behaviour against a rate limiter but is not a bound anyone should rely on -
-// give long walks a context deadline.
+// 429s - measured as a concurrency limiter rather than a rate limiter: one
+// request in flight at a time clears with no 429s at all, at roughly the
+// same throughput a burst of many concurrent requests achieves after most of
+// them are rejected and retried. Every 429 observed carries a `Retry-After`
+// of one second, so the backoff honours it (falling back to jittered
+// exponential backoff, up to 2-10 seconds times the attempt number, for a
+// response with none) rather than waiting a fixed multi-second interval
+// regardless of what the server actually asked for. Up to 20 attempts; give
+// long walks a context deadline, since that is still not a bound anyone
+// should rely on.
 func NewClient(appToken, appSecret string) *Client {
 	mkm := Client{}
 	client := retryablehttp.NewClient()
 	client.Logger = nil
-	client.Backoff = retryablehttp.LinearJitterBackoff
+	client.Backoff = retryablehttp.DefaultBackoff
 	client.RetryWaitMin = 2 * time.Second
 	client.RetryWaitMax = 10 * time.Second
 	client.RetryMax = 20
