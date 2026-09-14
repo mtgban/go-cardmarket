@@ -17,6 +17,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -440,6 +442,46 @@ type authTransport struct {
 	RequestNo atomic.Int64
 }
 
+// addQueryParams folds a request's query parameters into the set a request
+// is signed with, every value of a repeated key included and sorted - the
+// request itself still carries all of them on the wire regardless of what
+// order they're signed in, so a signature computed over only the first, or
+// over the rest in the wrong order, mismatches what the server actually
+// checks and fails with an opaque 401.
+//
+// The sort is numeric, not RFC 5849 §3.4.1.3.2's byte-value ordering:
+// confirmed live (varying only the wire order of a repeated sellerCountry
+// value against the real API) that Cardmarket's server expects a repeated
+// key's values normalized by numeric value - "4" before "13" - where
+// byte-value order would put "13" first. Sending them in the wire's own
+// order authenticated only when that happened to already be ascending; the
+// same values reversed on the wire, signed in that same (now descending)
+// order, came back 401. A value that doesn't parse as a plain integer falls
+// back to byte-value sorting, since nothing suggests this normalization
+// extends past the one parameter (a numeric id) it's ever been observed to
+// accept repeated at all.
+//
+// Currently unreachable through this package's own exported calls
+// (Client.Articles builds its query from a plain map[string]string, which
+// cannot hold a repeated key), but a latent trap for any future caller who
+// builds a request with one directly.
+func addQueryParams(q url.Values, query url.Values) {
+	for key, values := range query {
+		sorted := slices.Clone(values)
+		sort.Slice(sorted, func(i, j int) bool {
+			a, aErr := strconv.Atoi(sorted[i])
+			b, bErr := strconv.Atoi(sorted[j])
+			if aErr == nil && bErr == nil {
+				return a < b
+			}
+			return sorted[i] < sorted[j]
+		})
+		for _, value := range sorted {
+			q.Add(key, value)
+		}
+	}
+}
+
 func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Generate nonce
 	rawID := make([]byte, 16)
@@ -459,9 +501,7 @@ func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	q.Set("oauth_token", t.AccessToken)
 	q.Set("oauth_version", "1.0")
 
-	for key, value := range req.URL.Query() {
-		q.Set(key, value[0])
-	}
+	addQueryParams(q, req.URL.Query())
 	// MKM expects path-encoded queries because javascript, but q.Encode() uses
 	// the query-encoding, so perform the only replacement that matters
 	queries := strings.Replace(q.Encode(), "+", "%20", -1)
