@@ -153,6 +153,18 @@ func (mkm *Client) get(ctx context.Context, link string, out any) error {
 	if err != nil {
 		return err
 	}
+
+	// A non-2xx status with an empty body is a real error, not a clean
+	// zero-result answer - retryablehttp's own policy already exhausted its
+	// retries on anything retryable (429, 5xx) before this ever returns, so
+	// what's left is either a genuine rejection (401, 403, ...) or one of
+	// the API's own documented empty successes (204, on a query matching
+	// nothing). Trusting an empty body regardless of status once let an
+	// edge-level block (403, empty body, no APIError JSON to catch it) read
+	// as "no error, nothing found" - silently wrong, not merely incomplete.
+	if (resp.StatusCode < 200 || resp.StatusCode >= 300) && len(data) == 0 {
+		return fmt.Errorf("cardmarket: %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
+	}
 	if len(data) == 0 {
 		return nil
 	}
