@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -141,22 +142,27 @@ type Expansion struct {
 
 // get performs a signed request and decodes the body into out. A body that
 // is not the expected shape is returned as the API's own error where it sent
-// one, and verbatim where it did not.
-func (mkm *Client) get(ctx context.Context, link string, out any) error {
+// one, and verbatim where it did not. The response's Content-Range header is
+// returned alongside, verbatim and unparsed (see ParseContentRange) - a
+// listing endpoint is the only caller that has any use for it, but reading
+// it here means no caller has to reach past the decoded body for it.
+func (mkm *Client) get(ctx context.Context, link string, out any) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, http.NoBody)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	resp, err := mkm.client.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer resp.Body.Close()
 
+	contentRange := resp.Header.Get("Content-Range")
+
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return contentRange, err
 	}
 
 	// A non-2xx status with an empty body is a real error, not a clean
@@ -168,10 +174,10 @@ func (mkm *Client) get(ctx context.Context, link string, out any) error {
 	// edge-level block (403, empty body, no APIError JSON to catch it) read
 	// as "no error, nothing found" - silently wrong, not merely incomplete.
 	if (resp.StatusCode < 200 || resp.StatusCode >= 300) && len(data) == 0 {
-		return fmt.Errorf("cardmarket: %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
+		return contentRange, fmt.Errorf("cardmarket: %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 	}
 	if len(data) == 0 {
-		return nil
+		return contentRange, nil
 	}
 
 	// The error body decodes as an object like any other, so it is read
@@ -179,14 +185,36 @@ func (mkm *Client) get(ctx context.Context, link string, out any) error {
 	// hand back an empty result.
 	var apiErr APIError
 	if json.Unmarshal(data, &apiErr) == nil && apiErr.Description != "" {
-		return &apiErr
+		return contentRange, &apiErr
 	}
 
 	err = json.Unmarshal(data, out)
 	if err != nil {
-		return errors.New(string(data))
+		return contentRange, errors.New(string(data))
 	}
-	return nil
+	return contentRange, nil
+}
+
+// ParseContentRange reads the total listing count out of a Content-Range
+// header ("0-29/33", or "0-99/1000+" once Cardmarket stops counting past its
+// own cap). Capped reports the latter case: total is 1000, the highest
+// figure the API ever reports, not the real count, which is unknowable past
+// it. An empty or unrecognized header reports ok=false rather than a
+// misleading zero.
+func ParseContentRange(header string) (total int, capped bool, ok bool) {
+	_, totalPart, found := strings.Cut(header, "/")
+	if !found || totalPart == "" {
+		return 0, false, false
+	}
+	if strings.HasSuffix(totalPart, "+") {
+		capped = true
+		totalPart = strings.TrimSuffix(totalPart, "+")
+	}
+	total, err := strconv.Atoi(totalPart)
+	if err != nil {
+		return 0, false, false
+	}
+	return total, capped, true
 }
 
 // Expansions returns every expansion of one game.
@@ -194,7 +222,7 @@ func (mkm *Client) Expansions(ctx context.Context, gameID int) ([]Expansion, err
 	var response struct {
 		Expansions []Expansion `json:"expansion"`
 	}
-	err := mkm.get(ctx, fmt.Sprintf(gameExpansionsURL, gameID), &response)
+	_, err := mkm.get(ctx, fmt.Sprintf(gameExpansionsURL, gameID), &response)
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +282,7 @@ func (mkm *Client) Product(ctx context.Context, id int) (*Product, error) {
 	var response struct {
 		Product Product `json:"product"`
 	}
-	err := mkm.get(ctx, productsBaseURL+fmt.Sprint(id), &response)
+	_, err := mkm.get(ctx, productsBaseURL+fmt.Sprint(id), &response)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +295,7 @@ func (mkm *Client) ExpansionSingles(ctx context.Context, id int) ([]Product, err
 		Expansion Expansion `json:"expansion"`
 		Single    []Product `json:"single"`
 	}
-	err := mkm.get(ctx, expansionsBaseURL+fmt.Sprint(id)+"/singles", &response)
+	_, err := mkm.get(ctx, expansionsBaseURL+fmt.Sprint(id)+"/singles", &response)
 	if err != nil {
 		return nil, err
 	}
@@ -366,13 +394,20 @@ func DefaultArticleFilter(onlyEnglish bool) map[string]string {
 	return options
 }
 
-// Articles returns the listings on a product, one page at a time. Pages
-// start at zero, and the API requires both bounds: asking for a page size
-// without a start is refused.
-func (mkm *Client) Articles(ctx context.Context, id int, options map[string]string, page, maxResults int) ([]Article, error) {
+// Articles returns the listings on a product, one page at a time, together
+// with the listing's true total count (see ParseContentRange) so a caller
+// can stop paginating once it's covered the total, or confirm a filter
+// (isFoil, idLanguage, ...) actually narrowed the result rather than being
+// silently ignored - Cardmarket's filters fail open on an unrecognized name
+// or value, answering the unfiltered list rather than an error. total is 0
+// when the header is missing or unparseable; capped reports Cardmarket's own
+// 1000-result ceiling, past which the real count is unknowable. Pages start
+// at zero, and the API requires both bounds: asking for a page size without
+// a start is refused.
+func (mkm *Client) Articles(ctx context.Context, id int, options map[string]string, page, maxResults int) (articles []Article, total int, capped bool, err error) {
 	u, err := url.Parse(articlesBaseURL + fmt.Sprint(id))
 	if err != nil {
-		return nil, err
+		return nil, 0, false, err
 	}
 	params := url.Values{}
 	for key, value := range options {
@@ -385,11 +420,12 @@ func (mkm *Client) Articles(ctx context.Context, id int, options map[string]stri
 	var response struct {
 		Articles []Article `json:"article"`
 	}
-	err = mkm.get(ctx, u.String(), &response)
+	contentRange, err := mkm.get(ctx, u.String(), &response)
 	if err != nil {
-		return nil, err
+		return nil, 0, false, err
 	}
-	return response.Articles, nil
+	total, capped, _ = ParseContentRange(contentRange)
+	return response.Articles, total, capped, nil
 }
 
 type authTransport struct {

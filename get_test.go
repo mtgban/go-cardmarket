@@ -44,7 +44,7 @@ func TestGetEmptyBodyStatusHandling(t *testing.T) {
 			var out struct {
 				OK bool `json:"ok"`
 			}
-			err := mkm.get(context.Background(), server.URL, &out)
+			_, err := mkm.get(context.Background(), server.URL, &out)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("get() error = %v, wantErr %v", err, tt.wantErr)
 			}
