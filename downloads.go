@@ -234,9 +234,19 @@ func setAffiliate(v url.Values, affiliate string) {
 	v.Set("utm_campaign", "card_prices")
 }
 
-// BuildURL builds the storefront link for a product, carrying an affiliate tag
-// when one is given.
-func BuildURL(idProduct, idGame int, affiliate string, foil bool) string {
+// Finish are a Cardmarket listing's own finish flags - isFoil, isFirstEd and
+// isReverseHolo are independent per Article (a Pokemon listing can carry
+// isFirstEd and isReverseHolo together, confirmed live), not one game's
+// choice of a single vocabulary. BuildURL sets exactly the ones given, so a
+// caller with a real Article in hand can pass its three flags straight
+// through with no per-game mapping of its own.
+type Finish struct {
+	Foil, FirstEd, ReverseHolo bool
+}
+
+// BuildURL builds the storefront link for a product, carrying an affiliate
+// tag when one is given and the given finish flags.
+func BuildURL(idProduct, idGame int, affiliate string, finish Finish) string {
 	game := GameName(idGame)
 	if game == "" {
 		return ""
@@ -255,8 +265,14 @@ func BuildURL(idProduct, idGame int, affiliate string, foil bool) string {
 	// automatically in case the card has is non-English only
 	v.Set("language", "1")
 
-	if foil {
+	if finish.Foil {
 		v.Set("isFoil", "Y")
+	}
+	if finish.FirstEd {
+		v.Set("isFirstEd", "Y")
+	}
+	if finish.ReverseHolo {
+		v.Set("isReverseHolo", "Y")
 	}
 
 	setAffiliate(v, affiliate)

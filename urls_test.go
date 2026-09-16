@@ -61,7 +61,7 @@ func TestSearchURL(t *testing.T) {
 // BuildURL keeps its behavior now that it shares the game and affiliate
 // helpers with SearchURL.
 func TestBuildURL(t *testing.T) {
-	raw := BuildURL(12345, GameMagic, "mtgban", true)
+	raw := BuildURL(12345, GameMagic, "mtgban", Finish{Foil: true})
 	u, err := parseChecked(t, raw)
 	if err != nil {
 		t.Fatal(err)
@@ -79,13 +79,30 @@ func TestBuildURL(t *testing.T) {
 
 	// A game the name table carries no entry for builds no link. Pokemon
 	// stood here until it gained one.
-	if got := BuildURL(1, GameForceOfWill, "", false); got != "" {
+	if got := BuildURL(1, GameForceOfWill, "", Finish{}); got != "" {
 		t.Errorf("uncovered game = %q, want empty", got)
 	}
-	// Non-foil omits the flag rather than sending a falsy value.
-	if strings.Contains(BuildURL(1, GameMagic, "", false), "isFoil") {
-		t.Error("non-foil url should not carry isFoil")
+	// No flags set omits all three rather than sending a falsy value.
+	if raw := BuildURL(1, GameMagic, "", Finish{}); strings.Contains(raw, "isFoil") ||
+		strings.Contains(raw, "isFirstEd") || strings.Contains(raw, "isReverseHolo") {
+		t.Errorf("no-finish url should carry none of the three flags: %s", raw)
 	}
+	// Pokemon's two axes are independent and can both be set at once - a
+	// 1st Edition Reverse Holo listing, confirmed to exist for the sets
+	// where the two mechanics overlapped historically.
+	q = mustQuery(t, BuildURL(1, GamePokemon, "", Finish{FirstEd: true, ReverseHolo: true}))
+	if q.Get("isFirstEd") != "Y" || q.Get("isReverseHolo") != "Y" || q.Get("isFoil") != "" {
+		t.Errorf("pokemon 1st-edition-reverse-holo query = %v", q)
+	}
+}
+
+func mustQuery(t *testing.T, raw string) url.Values {
+	t.Helper()
+	u, err := parseChecked(t, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u.Query()
 }
 
 func parseChecked(t *testing.T, raw string) (*url.URL, error) {
@@ -130,7 +147,7 @@ func TestGameFromName(t *testing.T) {
 	if got := SearchURL("Agumon", GameFromName("digimon"), "mtgban"); got != "" {
 		t.Errorf("uncovered game produced %q, want no link", got)
 	}
-	if got := BuildURL(1, GameFromName("digimon"), "mtgban", false); got != "" {
+	if got := BuildURL(1, GameFromName("digimon"), "mtgban", Finish{}); got != "" {
 		t.Errorf("uncovered game produced %q, want no link", got)
 	}
 }
