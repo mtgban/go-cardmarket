@@ -61,7 +61,7 @@ func TestSearchURL(t *testing.T) {
 // BuildURL keeps its behavior now that it shares the game and affiliate
 // helpers with SearchURL.
 func TestBuildURL(t *testing.T) {
-	raw := BuildURL(12345, GameMagic, "mtgban", true)
+	raw := BuildURL(12345, GameMagic, "mtgban", "isFoil")
 	u, err := parseChecked(t, raw)
 	if err != nil {
 		t.Fatal(err)
@@ -79,13 +79,27 @@ func TestBuildURL(t *testing.T) {
 
 	// A game the name table carries no entry for builds no link. Pokemon
 	// stood here until it gained one.
-	if got := BuildURL(1, GameForceOfWill, "", false); got != "" {
+	if got := BuildURL(1, GameForceOfWill, "", ""); got != "" {
 		t.Errorf("uncovered game = %q, want empty", got)
 	}
-	// Non-foil omits the flag rather than sending a falsy value.
-	if strings.Contains(BuildURL(1, GameMagic, "", false), "isFoil") {
-		t.Error("non-foil url should not carry isFoil")
+	// An empty finish omits the flag rather than sending a falsy value.
+	if strings.Contains(BuildURL(1, GameMagic, "", ""), "isFoil") {
+		t.Error("empty finish url should not carry isFoil")
 	}
+	// finish names whichever parameter the game's own finish axis uses -
+	// Pokemon's reverse holo is not spelled isFoil on the storefront either.
+	if q := mustQuery(t, BuildURL(1, GamePokemon, "", "isReverseHolo")); q.Get("isReverseHolo") != "Y" || q.Get("isFoil") != "" {
+		t.Errorf("pokemon reverse holo query = %v", q)
+	}
+}
+
+func mustQuery(t *testing.T, raw string) url.Values {
+	t.Helper()
+	u, err := parseChecked(t, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return u.Query()
 }
 
 func parseChecked(t *testing.T, raw string) (*url.URL, error) {
@@ -130,7 +144,7 @@ func TestGameFromName(t *testing.T) {
 	if got := SearchURL("Agumon", GameFromName("digimon"), "mtgban"); got != "" {
 		t.Errorf("uncovered game produced %q, want no link", got)
 	}
-	if got := BuildURL(1, GameFromName("digimon"), "mtgban", false); got != "" {
+	if got := BuildURL(1, GameFromName("digimon"), "mtgban", ""); got != "" {
 		t.Errorf("uncovered game produced %q, want no link", got)
 	}
 }

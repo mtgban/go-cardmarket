@@ -234,9 +234,12 @@ func setAffiliate(v url.Values, affiliate string) {
 	v.Set("utm_campaign", "card_prices")
 }
 
-// BuildURL builds the storefront link for a product, carrying an affiliate tag
-// when one is given.
-func BuildURL(idProduct, idGame int, affiliate string, foil bool) string {
+// BuildURL builds the storefront link for a product, carrying an affiliate
+// tag when one is given. finish, when not empty, is the storefront's own
+// query parameter name for the listing's finish - "isFoil" for Magic,
+// Lorcana and Riftbound, "isReverseHolo" for Pokemon, "isFirstEd" for
+// Yu-Gi-Oh! - set to "Y"; a caller not distinguishing finishes passes "".
+func BuildURL(idProduct, idGame int, affiliate string, finish string) string {
 	game := GameName(idGame)
 	if game == "" {
 		return ""
@@ -255,8 +258,8 @@ func BuildURL(idProduct, idGame int, affiliate string, foil bool) string {
 	// automatically in case the card has is non-English only
 	v.Set("language", "1")
 
-	if foil {
-		v.Set("isFoil", "Y")
+	if finish != "" {
+		v.Set(finish, "Y")
 	}
 
 	setAffiliate(v, affiliate)
