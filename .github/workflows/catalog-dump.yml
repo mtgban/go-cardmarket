@@ -7,7 +7,7 @@ run-name: Catalog dump (${{ inputs.game || 'all' }})
 # instead of crawling. Magic's comes from MTGJSON and is not built here.
 on:
   schedule:
-    - cron: "14 3 * * *"
+    - cron: "45 16 * * *"
   workflow_dispatch:
     inputs:
       game:
