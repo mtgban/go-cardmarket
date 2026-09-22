@@ -165,7 +165,7 @@ MKM_APP_TOKEN=... MKM_APP_SECRET=... \
 ```
 
 Flags:
-- `-game` — `lorcana`, `riftbound`, `onepiece`, `pokemon`, `yugioh`, `fleshandblood`
+- `-game` — `lorcana`, `riftbound`, `gundam`, `onepiece`, `pokemon`, `yugioh`, `fleshandblood`
 - `-output` — a path, or a `b2://bucket/object` one; an `.xz` suffix compresses it
 
 A `b2://` output reads `B2_APPLICATION_KEY_ID` and `B2_APPLICATION_KEY` — the

@@ -34,7 +34,7 @@ func main() {
 }
 
 func run() error {
-	gameName := flag.String("game", "", "game to walk (lorcana, riftbound, onepiece, pokemon, yugioh, fleshandblood)")
+	gameName := flag.String("game", "", "game to walk (lorcana, riftbound, gundam, onepiece, pokemon, yugioh, fleshandblood)")
 	output := flag.String("output", "", "file or b2:// object to write; an .xz suffix compresses it")
 	flag.Parse()
 
