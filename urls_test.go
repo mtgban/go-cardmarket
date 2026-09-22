@@ -27,6 +27,39 @@ func TestGameName(t *testing.T) {
 	}
 }
 
+// The ids are a bare iota run, so a game inserted in the wrong place
+// renumbers every game after it - and nothing would say so, because the
+// numbers only ever leave this package inside a download path. Pinning them
+// turns that into a failing test rather than a game quietly priced from
+// another game's catalog file. Each number here was read off the published
+// catalog at downloads.s3.cardmarket.com: the file for 24 shelves "Gundam
+// Single", 23's shelves "Cyberpunk Single".
+//
+// A table of pairs rather than a map: two constants that collide are the
+// failure being guarded against, and a map literal would not compile.
+func TestGameIDs(t *testing.T) {
+	ids := []struct {
+		name string
+		got  int
+		want int
+	}{
+		{"Magic", GameMagic, 1},
+		{"YuGiOh", GameYuGiOh, 3},
+		{"Pokemon", GamePokemon, 6},
+		{"FleshAndBlood", GameFleshAndBlood, 16},
+		{"OnePiece", GameOnePiece, 18},
+		{"Lorcana", GameLorcana, 19},
+		{"Riftbound", GameRiftbound, 22},
+		{"Cyberpunk", GameCyberpunk, 23},
+		{"Gundam", GameGundam, 24},
+	}
+	for _, id := range ids {
+		if id.got != id.want {
+			t.Errorf("%s = %d, want %d", id.name, id.got, id.want)
+		}
+	}
+}
+
 func TestSearchURL(t *testing.T) {
 	raw := SearchURL("Ariel - Singing Mermaid", GameLorcana, "mtgban")
 	u, err := parseChecked(t, raw)

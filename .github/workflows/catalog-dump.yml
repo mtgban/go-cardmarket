@@ -18,6 +18,7 @@ on:
           - all
           - lorcana
           - riftbound
+          - gundam
           - onepiece
           - pokemon
           - yugioh
@@ -39,7 +40,7 @@ jobs:
         env:
           SELECTED: ${{ inputs.game || 'all' }}
         run: |
-          games='["lorcana","riftbound","onepiece","pokemon","yugioh","fleshandblood"]'
+          games='["lorcana","riftbound","gundam","onepiece","pokemon","yugioh","fleshandblood"]'
           if [ "$SELECTED" = all ]; then
             selection=$(jq -c . <<< "$games")
           else

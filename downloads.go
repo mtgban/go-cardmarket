@@ -36,6 +36,8 @@ const (
 	GameBattleSpiritsSaga
 	GameStarWarsUnlimited
 	GameRiftbound
+	GameCyberpunk
+	GameGundam
 )
 
 // The published catalog files, which the site serves to anyone: no app
@@ -174,6 +176,7 @@ var gameNames = map[int]string{
 	GameMagic:         "Magic",
 	GameLorcana:       "Lorcana",
 	GameRiftbound:     "Riftbound",
+	GameGundam:        "Gundam",
 	GameOnePiece:      "OnePiece",
 	GameYuGiOh:        "YuGiOh",
 	GameFleshAndBlood: "FleshAndBlood",
