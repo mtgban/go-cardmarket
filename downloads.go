@@ -97,15 +97,34 @@ func (pg PriceGuide) SecondPrinting(gameID int) (low, trend float64) {
 	return pg.FoilLowPrice, pg.FoilTrendPrice
 }
 
-// DownloadPriceGuide downloads the published price guide for one game.
-func DownloadPriceGuide(ctx context.Context, gameID int) ([]PriceGuide, error) {
-	link := fmt.Sprintf(priceGuideURL, gameID)
+// getDownload fetches one published file, refusing a response that is not
+// one. A game whose catalog the site has not published yet is not a 404 with
+// a JSON body but a 403 with an XML one, which a decoder reports as "invalid
+// character '<' looking for beginning of value" - a parser bug by the look of
+// it, rather than the absent file it actually is. Gundam's price guide
+// answered exactly that for the weeks after the game appeared.
+func getDownload(ctx context.Context, link string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
 
 	resp, err := downloadClient().Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		resp.Body.Close()
+		return nil, fmt.Errorf("cardmarket: %d %s: %s",
+			resp.StatusCode, http.StatusText(resp.StatusCode), link)
+	}
+
+	return resp, nil
+}
+
+// DownloadPriceGuide downloads the published price guide for one game.
+func DownloadPriceGuide(ctx context.Context, gameID int) ([]PriceGuide, error) {
+	resp, err := getDownload(ctx, fmt.Sprintf(priceGuideURL, gameID))
 	if err != nil {
 		return nil, err
 	}
@@ -148,12 +167,7 @@ func DownloadProductListSealed(ctx context.Context, gameID int) ([]ProductList, 
 }
 
 func downloadProductList(ctx context.Context, link string) ([]ProductList, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, http.NoBody)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := downloadClient().Do(req)
+	resp, err := getDownload(ctx, link)
 	if err != nil {
 		return nil, err
 	}
