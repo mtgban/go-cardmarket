@@ -94,7 +94,22 @@ func checkRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 		return true, nil
 	}
 	tally.serverErrors++
-	return tally.serverErrors < serverErrorRetries, nil
+	if tally.serverErrors < serverErrorRetries {
+		return true, nil
+	}
+
+	// Stopping with a nil error would be read as "this response is the
+	// final, acceptable one": retryablehttp's success test is doErr,
+	// checkErr and shouldRetry all clear, so it would return the 503 as a
+	// response and never reach ErrorHandler. A 503 whose body happens to
+	// fit the shape being decoded - {"single":[]} - would then read as a
+	// shelf with no cards and unprice every card on it, silently, which is
+	// the failure this budget exists to make loud. Stopping with an error
+	// takes the failure path instead.
+	if resp != nil {
+		return false, fmt.Errorf("%d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
+	}
+	return false, err
 }
 
 // giveUp names what the client gave up on. retryablehttp's own message is

@@ -21,13 +21,26 @@ func TestRetryBudgets(t *testing.T) {
 	tests := []struct {
 		name       string
 		statusCode int
+		body       string
 		wantCalls  int
 	}{
 		// A 429 is the concurrency limiter saying "not yet". It clears,
 		// so it is worth the full budget.
-		{"rate limit keeps the full budget", http.StatusTooManyRequests, rateLimitRetries + 1},
+		{"rate limit keeps the full budget", http.StatusTooManyRequests, "", rateLimitRetries + 1},
 		// A 5xx is the API unwell on this one request. It does not clear.
-		{"server error gets the short budget", http.StatusServiceUnavailable, serverErrorRetries},
+		{"server error gets the short budget", http.StatusServiceUnavailable, "", serverErrorRetries},
+		// The body must not decide whether the status was an error. A
+		// 5xx answering the shape being decoded once read as a clean
+		// empty result, which in a catalog walk is a shelf recorded
+		// with no cards and every card on it quietly unpriced.
+		{"server error carrying a decodable body is still an error",
+			http.StatusServiceUnavailable, `{"single":[]}`, serverErrorRetries},
+		// 503 rather than 500 for both: DefaultBackoff honours
+		// Retry-After only for 429 and 503, so any other 5xx would make
+		// this sleep through the real 2-4-8 second backoff for a code
+		// path that is identical either way.
+		{"server error carrying an error page is still an error",
+			http.StatusServiceUnavailable, `<html>oops</html>`, serverErrorRetries},
 	}
 
 	for _, tt := range tests {
@@ -37,11 +50,14 @@ func TestRetryBudgets(t *testing.T) {
 				calls.Add(1)
 				w.Header().Set("Retry-After", "0")
 				w.WriteHeader(tt.statusCode)
+				fmt.Fprint(w, tt.body)
 			}))
 			defer server.Close()
 
 			mkm := NewClient("test-token", "test-secret")
-			var out struct{}
+			var out struct {
+				Single []Product `json:"single"`
+			}
 			_, err := mkm.get(context.Background(), server.URL, &out)
 			if err == nil {
 				t.Fatal("get() succeeded, want an error")
@@ -53,6 +69,13 @@ func TestRetryBudgets(t *testing.T) {
 			// the whole point of spending different budgets on them.
 			if !strings.Contains(err.Error(), http.StatusText(tt.statusCode)) {
 				t.Errorf("error does not name the status: %v", err)
+			}
+			// Naming the count proves the error came through the
+			// give-up path rather than from some later check that
+			// happens to reject this response for its own reasons.
+			want := fmt.Sprintf("after %d attempt(s)", tt.wantCalls)
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("error does not say %q: %v", want, err)
 			}
 		})
 	}
