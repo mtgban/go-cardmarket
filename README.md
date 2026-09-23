@@ -83,8 +83,10 @@ watch against the daily allowance.
   - `Product(ctx, productID) (*Product, error)`
 - **Articles** (listings)
   - `Articles(ctx, productID, options, page, maxResults) ([]Article, error)`
-  - `DefaultArticleFilter(onlyEnglish)` — played-or-better, from a seller with a
-    record, neither signed nor altered
+
+`options` is yours to choose. This package spells the filters and picks none
+of them: what condition is worth pricing, and which sellers are worth reading,
+are judgements about your own use, not facts about the marketplace.
 
 Pages start at zero and the API requires both bounds — asking for a page size
 without a start is refused. `MaxEntities` (**100**) is the largest page it
