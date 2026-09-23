@@ -144,6 +144,39 @@ seller in them.
 takes either the code or the word, so a caller holding an `Article`'s own
 condition does not have to know which it has.
 
+### Storefront links
+
+`BuildURL(game, productID, opt)` and `SearchURL(game, name, opt)` take the
+same `URLOption`, so a filter added to one cannot quietly skip the other:
+
+```go
+url := cardmarket.BuildURL(game, id, cardmarket.URLOption{
+    Foil:      cardmarket.Only,
+    Signed:    cardmarket.None,
+    Altered:   cardmarket.None,
+    Language:  cardmarket.LanguageEnglish,
+    Affiliate: "mtgban",
+})
+```
+
+Every flag is three-valued, because the marketplace's are: `Any` says
+nothing, `Only` asks for the listings that carry it, `None` for the ones that
+do not. `Any` is the zero value, so `URLOption{}` narrows nothing.
+
+`None` earns its place on the finishes too — a non-foil price that links to a
+page showing foils is quoting from a shelf the reader cannot see. The
+spellings differ (`isFoil=N` is bare, `extra[isAltered]=N` is nested), which
+is the marketplace's doing, not this package's.
+
+`Language` and `Affiliate` are the two fields that are not `Filter`s.
+`Language` is the one this package used to send as English whether or not
+anyone asked. `Affiliate` used to be a positional parameter beside the card's
+name in `SearchURL` — two adjacent strings, which transpose sooner or later
+into a search for the affiliate tagged with the card. Named, it cannot.
+
+Both builders return `""` for a number that names no game, rather than a link
+to a path the site does not serve.
+
 ### Finish flags are per-game
 
 A Magic `Article` carries `IsFoil` and neither of the others. A Pokémon

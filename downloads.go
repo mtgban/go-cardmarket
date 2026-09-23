@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/hashicorp/go-cleanhttp"
@@ -155,82 +154,4 @@ func downloadProductList(ctx context.Context, link string) ([]ProductList, error
 	}
 
 	return response.Products, nil
-}
-
-// SearchURL returns the catalog search for a product name, the fallback for a
-// card whose Cardmarket product id is not known. Empty for an uncovered game,
-// like BuildURL.
-func SearchURL(name string, idGame Game, affiliate string) string {
-	game := GameName(idGame)
-	if game == "" {
-		return ""
-	}
-
-	u, err := url.Parse(fmt.Sprintf("https://www.cardmarket.com/en/%s/Products/Search", game))
-	if err != nil {
-		return ""
-	}
-
-	v := url.Values{}
-	v.Set("searchString", name)
-	setAffiliate(v, affiliate)
-
-	u.RawQuery = v.Encode()
-	return u.String()
-}
-
-func setAffiliate(v url.Values, affiliate string) {
-	if affiliate == "" {
-		return
-	}
-	v.Set("utm_source", affiliate)
-	v.Set("utm_medium", "text")
-	v.Set("utm_campaign", "card_prices")
-}
-
-// Finish are a Cardmarket listing's own finish flags - isFoil, isFirstEd and
-// isReverseHolo are independent per Article (a Pokemon listing can carry
-// isFirstEd and isReverseHolo together, confirmed live), not one game's
-// choice of a single vocabulary. BuildURL sets exactly the ones given, so a
-// caller with a real Article in hand can pass its three flags straight
-// through with no per-game mapping of its own.
-type Finish struct {
-	Foil, FirstEd, ReverseHolo bool
-}
-
-// BuildURL builds the storefront link for a product, carrying an affiliate
-// tag when one is given and the given finish flags.
-func BuildURL(idProduct int, idGame Game, affiliate string, finish Finish) string {
-	game := GameName(idGame)
-	if game == "" {
-		return ""
-	}
-
-	u, err := url.Parse(fmt.Sprintf("https://www.cardmarket.com/en/%s/Products", game))
-	if err != nil {
-		return ""
-	}
-
-	v := url.Values{}
-
-	v.Set("idProduct", fmt.Sprint(idProduct))
-
-	// Set English as preferred language, it switches to the default one
-	// automatically in case the card has is non-English only
-	v.Set("language", "1")
-
-	if finish.Foil {
-		v.Set("isFoil", "Y")
-	}
-	if finish.FirstEd {
-		v.Set("isFirstEd", "Y")
-	}
-	if finish.ReverseHolo {
-		v.Set("isReverseHolo", "Y")
-	}
-
-	setAffiliate(v, affiliate)
-
-	u.RawQuery = v.Encode()
-	return u.String()
 }
