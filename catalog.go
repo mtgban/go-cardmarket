@@ -30,6 +30,14 @@ type Catalog struct {
 type CatalogMeta struct {
 	Date    string `json:"date"`
 	Version string `json:"version"`
+	// Unwalked names the expansions whose products did not come from this
+	// walk, because the API would not answer for them: they are the
+	// previous catalog's, or absent altogether where it had none for the
+	// expansion - a shelf added since the last good walk. A reader that
+	// cares how fresh a shelf is has to be told, since neither case is
+	// otherwise distinguishable from one walked today. Empty in the
+	// ordinary case, and in every file MTGJSON writes.
+	Unwalked []int `json:"unwalked,omitempty"`
 }
 
 // CatalogData is the file's two tables. JSON has only string keys, so the

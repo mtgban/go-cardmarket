@@ -70,11 +70,21 @@ jobs:
       - name: Build mkmcatalog
         run: go build ./cmd/mkmcatalog
 
+      # -previous points at the object this job is about to overwrite, so an
+      # expansion the API will not answer for keeps yesterday's products
+      # rather than dropping out of the file. It is read only when the walk
+      # leaves one unanswered, so a game with no catalog in the bucket yet
+      # needs nothing here until the day it fails.
       - name: Walk the ${{ matrix.game }} catalog
         env:
           MKM_APP_TOKEN: ${{ secrets.MKM_APP_TOKEN }}
           MKM_APP_SECRET: ${{ secrets.MKM_APP_SECRET }}
-        run: ./mkmcatalog -game ${{ matrix.game }} -output cardmarket_catalog.json
+          B2_APPLICATION_KEY_ID: ${{ secrets.B2_APPLICATION_KEY_ID_DATASTORE }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY_DATASTORE }}
+        run: |
+          ./mkmcatalog -game ${{ matrix.game }} \
+            -output cardmarket_catalog.json \
+            -previous b2://mtgban-datastore/${{ matrix.game }}/cardmarket_catalog.json.xz
 
       - name: Compress
         run: xz -T0 cardmarket_catalog.json
