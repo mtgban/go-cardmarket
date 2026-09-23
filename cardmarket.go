@@ -42,7 +42,73 @@ const (
 	// accepts and then stalls holds the walk open with nothing to time it
 	// out but the caller's context.
 	requestTimeout = 60 * time.Second
+
+	// rateLimitRetries and serverErrorRetries are two budgets because the
+	// two failures they answer are not the same failure. A 429 is the
+	// concurrency limiter saying "not yet", carries a Retry-After of one
+	// second, and clears - waiting it out twenty times costs twenty seconds
+	// and works. A 5xx is the API unwell on one particular request, and no
+	// number of attempts has ever talked one round: expansion 1645
+	// ("Pokemon Products") and 5303 ("Unnumbered Promos") each answered 21
+	// straight 5xx over six minutes, on more than one day, and failed the
+	// whole dump both times. Spending a fifth of the budget there fails in
+	// well under a minute and leaves the patience where it is earned.
+	rateLimitRetries   = 20
+	serverErrorRetries = 4
 )
+
+// attemptsKey carries the per-request tally checkRetry counts a 5xx with.
+// retryablehttp hands CheckRetry the request's context and nothing else - no
+// attempt number - so a budget narrower than RetryMax has to travel with the
+// request itself.
+type attemptsKey struct{}
+
+// attempts is that tally. One request is in flight at a time by design (see
+// NewClient), and each gets its own, so it needs no locking.
+type attempts struct{ serverErrors int }
+
+// withAttempts gives a request its own tally. A request made without one is
+// not refused - it falls back to the single RetryMax budget, which is the old
+// behaviour rather than a new failure.
+func withAttempts(ctx context.Context) context.Context {
+	return context.WithValue(ctx, attemptsKey{}, &attempts{})
+}
+
+// checkRetry is retryablehttp's own policy with the 5xx budget applied on
+// top: what gets retried is unchanged, how long it keeps being retried is not.
+func checkRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
+	retry, policyErr := retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+	if policyErr != nil || !retry {
+		return retry, policyErr
+	}
+
+	// Transport errors are counted with the server's: a connection that
+	// refuses or stalls repeatedly is the same kind of unwell, and at a
+	// 60-second timeout apiece it is the more expensive kind to sit through.
+	if resp != nil && resp.StatusCode < 500 {
+		return true, nil
+	}
+
+	tally, ok := ctx.Value(attemptsKey{}).(*attempts)
+	if !ok {
+		return true, nil
+	}
+	tally.serverErrors++
+	return tally.serverErrors < serverErrorRetries, nil
+}
+
+// giveUp names what the client gave up on. retryablehttp's own message is
+// "GET <url> giving up after N attempt(s)", which says how hard it tried and
+// not one word about why - and the difference between a rate limit to wait
+// out and a 500 to route around is exactly what a caller needs to know.
+func giveUp(resp *http.Response, err error, tries int) (*http.Response, error) {
+	if resp != nil {
+		resp.Body.Close()
+		return nil, fmt.Errorf("cardmarket: %d %s after %d attempt(s)",
+			resp.StatusCode, http.StatusText(resp.StatusCode), tries)
+	}
+	return nil, fmt.Errorf("cardmarket: after %d attempt(s): %w", tries, err)
+}
 
 // Client reads Cardmarket's API, which signs every request with an app token
 // and secret.
@@ -61,9 +127,10 @@ type Client struct {
 // of one second, so the backoff honours it (falling back to jittered
 // exponential backoff, up to 2-10 seconds times the attempt number, for a
 // response with none) rather than waiting a fixed multi-second interval
-// regardless of what the server actually asked for. Up to 20 attempts; give
-// long walks a context deadline, since that is still not a bound anyone
-// should rely on.
+// regardless of what the server actually asked for. A 429 is retried up to
+// rateLimitRetries times and a 5xx only serverErrorRetries, for the reasons
+// given there; give long walks a context deadline, since neither is a bound
+// anyone should rely on.
 func NewClient(appToken, appSecret string) *Client {
 	mkm := Client{}
 	client := retryablehttp.NewClient()
@@ -71,7 +138,9 @@ func NewClient(appToken, appSecret string) *Client {
 	client.Backoff = retryablehttp.DefaultBackoff
 	client.RetryWaitMin = 2 * time.Second
 	client.RetryWaitMax = 10 * time.Second
-	client.RetryMax = 20
+	client.RetryMax = rateLimitRetries
+	client.CheckRetry = checkRetry
+	client.ErrorHandler = giveUp
 	client.HTTPClient.Timeout = requestTimeout
 
 	auth := &authTransport{
@@ -149,7 +218,7 @@ type Expansion struct {
 // listing endpoint is the only caller that has any use for it, but reading
 // it here means no caller has to reach past the decoded body for it.
 func (mkm *Client) get(ctx context.Context, link string, out any) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, http.NoBody)
+	req, err := http.NewRequestWithContext(withAttempts(ctx), http.MethodGet, link, http.NoBody)
 	if err != nil {
 		return "", err
 	}
