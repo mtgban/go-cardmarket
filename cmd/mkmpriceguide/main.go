@@ -18,9 +18,18 @@ const downloadTimeout = 10 * time.Minute
 
 func run() int {
 	mode := flag.String("mode", "prices", "Which file to download [prices]/singles/sealed")
-	game := flag.Int("game", 1, "Select which game (default=magic)")
+	name := flag.String("game", "magic", "Which game to download, by name (magic, pokemon, gundam, ...)")
 
 	flag.Parse()
+
+	// Named rather than numbered: the ids are Cardmarket's own and a
+	// caller that has to look one up has no way to notice it looked up the
+	// wrong one. GameFromName knows every game the marketplace carries.
+	game := cardmarket.GameFromName(*name)
+	if game == 0 {
+		fmt.Fprintf(os.Stderr, "unknown game %q\n", *name)
+		return 1
+	}
 
 	var output any
 	var err error
@@ -29,11 +38,11 @@ func run() int {
 	defer cancel()
 	switch *mode {
 	default:
-		output, err = cardmarket.DownloadPriceGuide(ctx, *game)
+		output, err = cardmarket.DownloadPriceGuide(ctx, game)
 	case "singles":
-		output, err = cardmarket.DownloadProductListSingles(ctx, *game)
+		output, err = cardmarket.DownloadProductListSingles(ctx, game)
 	case "sealed":
-		output, err = cardmarket.DownloadProductListSealed(ctx, *game)
+		output, err = cardmarket.DownloadProductListSealed(ctx, game)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

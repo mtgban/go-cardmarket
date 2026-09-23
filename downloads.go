@@ -6,38 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/go-cleanhttp"
-)
-
-// The games Cardmarket carries, as their API numbers them.
-const (
-	GameMagic = iota + 1
-	GameWorldOfWarcraft
-	GameYuGiOh
-	_
-	GameTheSpoils
-	GamePokemon
-	GameForceOfWill
-	GameCardfightVanguard
-	GameFinalFantasy
-	GameWeissSchwarz
-	GameDragoborne
-	GameMyLittlePony
-	GameDragonBallSuper
-	_
-	GameStarWarsDestiny
-	GameFleshAndBlood
-	GameDigimon
-	GameOnePiece
-	GameLorcana
-	GameBattleSpiritsSaga
-	GameStarWarsUnlimited
-	GameRiftbound
-	GameCyberpunk
-	GameGundam
 )
 
 // The published catalog files, which the site serves to anyone: no app
@@ -90,8 +61,8 @@ type PriceGuide struct {
 // default one, under whichever heading the game's guide publishes them. Most
 // games sell a foil beside a plain card; Pokemon sells a reverse holo, and
 // its guide says so.
-func (pg PriceGuide) SecondPrinting(gameID int) (low, trend float64) {
-	if gameID == GamePokemon {
+func (pg PriceGuide) SecondPrinting(game Game) (low, trend float64) {
+	if game == GamePokemon {
 		return pg.HoloLowPrice, pg.HoloTrendPrice
 	}
 	return pg.FoilLowPrice, pg.FoilTrendPrice
@@ -123,8 +94,8 @@ func getDownload(ctx context.Context, link string) (*http.Response, error) {
 }
 
 // DownloadPriceGuide downloads the published price guide for one game.
-func DownloadPriceGuide(ctx context.Context, gameID int) ([]PriceGuide, error) {
-	resp, err := getDownload(ctx, fmt.Sprintf(priceGuideURL, gameID))
+func DownloadPriceGuide(ctx context.Context, game Game) ([]PriceGuide, error) {
+	resp, err := getDownload(ctx, fmt.Sprintf(priceGuideURL, game))
 	if err != nil {
 		return nil, err
 	}
@@ -156,14 +127,14 @@ type ProductList struct {
 }
 
 // DownloadProductListSingles downloads the catalog of one game's singles.
-func DownloadProductListSingles(ctx context.Context, gameID int) ([]ProductList, error) {
-	return downloadProductList(ctx, fmt.Sprintf(productListSinglesURL, gameID))
+func DownloadProductListSingles(ctx context.Context, game Game) ([]ProductList, error) {
+	return downloadProductList(ctx, fmt.Sprintf(productListSinglesURL, game))
 }
 
 // DownloadProductListSealed downloads the catalog of one game's sealed
 // product.
-func DownloadProductListSealed(ctx context.Context, gameID int) ([]ProductList, error) {
-	return downloadProductList(ctx, fmt.Sprintf(productListSealedURL, gameID))
+func DownloadProductListSealed(ctx context.Context, game Game) ([]ProductList, error) {
+	return downloadProductList(ctx, fmt.Sprintf(productListSealedURL, game))
 }
 
 func downloadProductList(ctx context.Context, link string) ([]ProductList, error) {
@@ -186,44 +157,10 @@ func downloadProductList(ctx context.Context, link string) ([]ProductList, error
 	return response.Products, nil
 }
 
-var gameNames = map[int]string{
-	GameMagic:         "Magic",
-	GameLorcana:       "Lorcana",
-	GameRiftbound:     "Riftbound",
-	GameGundam:        "Gundam",
-	GameOnePiece:      "OnePiece",
-	GameYuGiOh:        "YuGiOh",
-	GameFleshAndBlood: "FleshAndBlood",
-	GamePokemon:       "Pokemon",
-}
-
-// GameName returns the game as Cardmarket spells it, or "" for a game whose
-// catalog is not covered.
-func GameName(idGame int) string {
-	return gameNames[idGame]
-}
-
-// GameFromName is the inverse, matching case-insensitively so a caller can
-// hand over the name it already knows a game by ("lorcana") instead of
-// translating to an id first; an unnamed game is Magic. Unknown games answer
-// 0, which the URL builders reject: a game Cardmarket does not carry yields no
-// link at all rather than one pointing at a path it does not serve.
-func GameFromName(name string) int {
-	if name == "" {
-		return GameMagic
-	}
-	for idGame, gameName := range gameNames {
-		if strings.EqualFold(gameName, name) {
-			return idGame
-		}
-	}
-	return 0
-}
-
 // SearchURL returns the catalog search for a product name, the fallback for a
 // card whose Cardmarket product id is not known. Empty for an uncovered game,
 // like BuildURL.
-func SearchURL(name string, idGame int, affiliate string) string {
+func SearchURL(name string, idGame Game, affiliate string) string {
 	game := GameName(idGame)
 	if game == "" {
 		return ""
@@ -263,7 +200,7 @@ type Finish struct {
 
 // BuildURL builds the storefront link for a product, carrying an affiliate
 // tag when one is given and the given finish flags.
-func BuildURL(idProduct, idGame int, affiliate string, finish Finish) string {
+func BuildURL(idProduct int, idGame Game, affiliate string, finish Finish) string {
 	game := GameName(idGame)
 	if game == "" {
 		return ""

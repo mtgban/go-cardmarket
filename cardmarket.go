@@ -222,7 +222,7 @@ type Expansion struct {
 	Icon        int    `json:"icon"`
 	ReleaseDate string `json:"releaseDate"`
 	IsReleased  bool   `json:"isReleased"`
-	IDGame      int    `json:"idGame"`
+	IDGame      Game   `json:"idGame"`
 	Links       []Link `json:"links,omitempty"`
 }
 
@@ -304,11 +304,11 @@ func ParseContentRange(header string) (total int, capped bool, ok bool) {
 }
 
 // Expansions returns every expansion of one game.
-func (mkm *Client) Expansions(ctx context.Context, gameID int) ([]Expansion, error) {
+func (mkm *Client) Expansions(ctx context.Context, game Game) ([]Expansion, error) {
 	var response struct {
 		Expansions []Expansion `json:"expansion"`
 	}
-	_, err := mkm.get(ctx, fmt.Sprintf(gameExpansionsURL, gameID), &response)
+	_, err := mkm.get(ctx, fmt.Sprintf(gameExpansionsURL, game), &response)
 	if err != nil {
 		return nil, err
 	}
@@ -336,7 +336,7 @@ type Product struct {
 	Image        string `json:"image"`
 	GameName     string `json:"gameName"`
 	CategoryName string `json:"categoryName"`
-	IDGame       int    `json:"idGame"`
+	IDGame       Game   `json:"idGame"`
 	Number       string `json:"number"`
 	// Rarity is what the marketplace calls the printing's rarity. It is the
 	// game's own vocabulary where the game has one - Common through Secret
@@ -450,7 +450,7 @@ type Article struct {
 		SetCode     string `json:"abbreviation"`
 		Number      string `json:"nr"`
 		Rarity      string `json:"rarity"`
-		IDGame      int    `json:"idGame"`
+		IDGame      Game   `json:"idGame"`
 		ExpIcon     int    `json:"expIcon"`
 	} `json:"product"`
 	Seller ArticleSeller `json:"seller"`
