@@ -103,6 +103,19 @@ func GameFromName(name string) Game {
 	return 0
 }
 
+// Filter is how a listing property narrows a storefront link: not at all,
+// to the listings that carry it, or to the listings that do not. The
+// marketplace's own controls are three-valued in exactly this way, and its
+// zero is "any", so the zero value here narrows nothing.
+type Filter int
+
+// The three states, as the marketplace's filters spell them: 0, Y and N.
+const (
+	Any Filter = iota
+	Only
+	None
+)
+
 // Language is a language the marketplace trades in, as idLanguage numbers
 // them.
 type Language int
