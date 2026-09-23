@@ -206,9 +206,9 @@ type Link struct {
 // Localization is a name as one language spells it. Every named entity
 // carries the five languages the marketplace trades in.
 type Localization struct {
-	Name         string `json:"name"`
-	IDLanguage   int    `json:"idLanguage"`
-	LanguageName string `json:"languageName"`
+	Name         string   `json:"name"`
+	IDLanguage   Language `json:"idLanguage"`
+	LanguageName string   `json:"languageName"`
 }
 
 // Expansion is a set as Cardmarket files it.
@@ -431,8 +431,8 @@ type Article struct {
 	IDArticle int `json:"idArticle"`
 	IDProduct int `json:"idProduct"`
 	Language  struct {
-		IDLanguage   int    `json:"idLanguage"`
-		LanguageName string `json:"languageName"`
+		IDLanguage   Language `json:"idLanguage"`
+		LanguageName string   `json:"languageName"`
 	} `json:"language"`
 	Comments       string         `json:"comments"`
 	Price          float64        `json:"price"`
@@ -441,7 +441,7 @@ type Article struct {
 	Prices         []ArticlePrice `json:"prices,omitempty"`
 	Count          int            `json:"count"`
 	InShoppingCart bool           `json:"inShoppingCart"`
-	Condition      string         `json:"condition"`
+	Condition      Condition      `json:"condition"`
 	Product        struct {
 		Name        string `json:"enName"`
 		LocName     string `json:"locName"`

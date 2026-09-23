@@ -88,6 +88,11 @@ watch against the daily allowance.
 of them: what condition is worth pricing, and which sellers are worth reading,
 are judgements about your own use, not facts about the marketplace.
 
+> Cardmarket's filters **fail open**. A parameter that does not apply to a
+> game, or a value it does not recognise, is ignored and the unfiltered
+> listing is answered — not an error. Check each `Article`'s own flags rather
+> than trusting the request.
+
 Pages start at zero and the API requires both bounds — asking for a page size
 without a start is refused. `MaxEntities` (**100**) is the largest page it
 serves.
@@ -104,23 +109,40 @@ The marketplace answers the same entity two ways, and which request built a
 
 A product read one way carries nothing of the other's.
 
-### Games are typed, and all of them are named
+### Identifiers are typed
 
-`Game` is its own type rather than an `int`, so handing a language or a
-country where a game belongs stops compiling instead of answering a plausible
-page. `GameName` and `GameFromName` read one table, so a game cannot be added
-to one direction and not the other:
+`Game`, `Language`, `Country`, `Condition`, `UserType` and `UserScore` are
+each their own type. The API spends small integers freely — a game, a
+language, a country and a seller score are all `3` to a compiler told nothing
+else, and they ride on the same request — so naming them makes the wrong one
+a compile error instead of a plausible page.
+
+Each has a `…Name` and a `…FromName`, read from one table so an entry cannot
+be added to one direction and not the other — all but `UserType`, whose
+constants are already the words the marketplace uses:
 
 ```go
-cardmarket.GameFromName("gundam")          // GameGundam
-cardmarket.GameName(cardmarket.GameGundam) // "Gundam"
+cardmarket.GameFromName("gundam")                    // GameGundam
+cardmarket.GameName(cardmarket.GameGundam)           // "Gundam"
+cardmarket.LanguageName(cardmarket.LanguageJapanese) // "Japanese"
 ```
 
-That table now covers **every** game the marketplace sells, not only the ones
-any particular caller prices — including the abbreviations the storefront
+`GameName` covers **every** game the marketplace sells, not only the ones any
+particular caller prices — including the abbreviations the storefront
 actually uses (`FoW`, `WoW`, `Vanguard`, `Spoils`), which are not
 interchangeable with the full names. An unknown name answers `0`, and so
-builds no link at all; `""` answers `0` too, where it used to answer Magic.
+builds no link at all.
+
+The language and country numbers are upstream's. Three countries —
+**Singapore (29), Canada (33), Japan (36)** — are on the marketplace's own
+seller-country filter but missing from its documentation; they are included
+here, because filtering by the documented list alone silently drops every
+seller in them.
+
+`Condition` and `UserScore` are declared best to worst, which is the order
+`minCondition` and `minUserScore` mean by "or better". `ConditionFromName`
+takes either the code or the word, so a caller holding an `Article`'s own
+condition does not have to know which it has.
 
 ### Finish flags are per-game
 
