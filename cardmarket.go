@@ -464,22 +464,6 @@ type Article struct {
 	Links []Link `json:"links,omitempty"`
 }
 
-// DefaultArticleFilter is the filter a price should be read through: played
-// or better, from a seller with a record, and neither signed nor altered.
-// Anything looser prices a card off a listing nobody would buy.
-func DefaultArticleFilter(onlyEnglish bool) map[string]string {
-	options := map[string]string{
-		"minCondition": "GD",
-		"minUserScore": "3",
-		"isSigned":     "false",
-		"isAltered":    "false",
-	}
-	if onlyEnglish {
-		options["idLanguage"] = "1"
-	}
-	return options
-}
-
 // Articles returns the listings on a product, one page at a time, together
 // with the listing's true total count (see ParseContentRange) so a caller
 // can stop paginating once it's covered the total, or confirm a filter
