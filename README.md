@@ -77,7 +77,7 @@ watch against the daily allowance.
 ## API helpers
 
 - **Expansions**
-  - `Expansions(ctx, gameID) ([]Expansion, error)` — every expansion of a game
+  - `Expansions(ctx, game) ([]Expansion, error)` — every expansion of a game
   - `ExpansionSingles(ctx, expansionID) ([]Product, error)` — every single card in one
 - **Products**
   - `Product(ctx, productID) (*Product, error)`
@@ -104,6 +104,24 @@ The marketplace answers the same entity two ways, and which request built a
 
 A product read one way carries nothing of the other's.
 
+### Games are typed, and all of them are named
+
+`Game` is its own type rather than an `int`, so handing a language or a
+country where a game belongs stops compiling instead of answering a plausible
+page. `GameName` and `GameFromName` read one table, so a game cannot be added
+to one direction and not the other:
+
+```go
+cardmarket.GameFromName("gundam")          // GameGundam
+cardmarket.GameName(cardmarket.GameGundam) // "Gundam"
+```
+
+That table now covers **every** game the marketplace sells, not only the ones
+any particular caller prices — including the abbreviations the storefront
+actually uses (`FoW`, `WoW`, `Vanguard`, `Spoils`), which are not
+interchangeable with the full names. An unknown name answers `0`, and so
+builds no link at all; `""` answers `0` too, where it used to answer Magic.
+
 ### Finish flags are per-game
 
 A Magic `Article` carries `IsFoil` and neither of the others. A Pokémon
@@ -115,11 +133,11 @@ uses.
 
 ## Published catalog files
 
-- `DownloadPriceGuide(ctx, gameID) ([]PriceGuide, error)`
-- `DownloadProductListSingles(ctx, gameID) ([]ProductList, error)`
-- `DownloadProductListSealed(ctx, gameID) ([]ProductList, error)`
+- `DownloadPriceGuide(ctx, game) ([]PriceGuide, error)`
+- `DownloadProductListSingles(ctx, game) ([]ProductList, error)`
+- `DownloadProductListSealed(ctx, game) ([]ProductList, error)`
 
-`PriceGuide.SecondPrinting(gameID)` reads the printing sold beside the default
+`PriceGuide.SecondPrinting(game)` reads the printing sold beside the default
 one under whichever heading the game's guide publishes it — most games publish
 a foil, Pokémon publishes a reverse holo.
 
@@ -167,7 +185,8 @@ MKM_APP_TOKEN=... MKM_APP_SECRET=... \
 ```
 
 Flags:
-- `-game` — `lorcana`, `riftbound`, `gundam`, `onepiece`, `pokemon`, `yugioh`, `fleshandblood`
+- `-game` — any game by name (`lorcana`, `riftbound`, `gundam`, `pokemon`, …);
+  see `GameFromName`
 - `-previous` — a catalog to carry an unanswerable expansion's products over
   from, read only when the walk leaves one. The API intermittently answers
   5xx for a particular expansion however many times it is asked; rather than
@@ -194,11 +213,11 @@ Downloads a published file to stdout. Needs no credentials.
 
 ```bash
 go build ./cmd/mkmpriceguide
-./mkmpriceguide -game 6 -mode prices > pokemon-prices.json
+./mkmpriceguide -game pokemon -mode prices > pokemon-prices.json
 ```
 
 Flags:
-- `-game` — the game id (see the `Game*` constants)
+- `-game` — the game by name (see the `Game*` constants)
 - `-mode` — `prices` (default), `singles`, `sealed`
 
 ---

@@ -36,13 +36,13 @@ func main() {
 }
 
 func run() error {
-	gameName := flag.String("game", "", "game to walk (lorcana, riftbound, gundam, onepiece, pokemon, yugioh, fleshandblood)")
+	gameName := flag.String("game", "", "game to walk, by name (lorcana, riftbound, gundam, pokemon, ... any game Cardmarket carries)")
 	output := flag.String("output", "", "file or b2:// object to write; an .xz suffix compresses it")
 	previous := flag.String("previous", "", "catalog to carry an unanswerable expansion's products over from; a file or b2:// object, read only if the walk leaves one")
 	flag.Parse()
 
-	gameID := cardmarket.GameFromName(*gameName)
-	if *gameName == "" || gameID == 0 {
+	game := cardmarket.GameFromName(*gameName)
+	if game == 0 {
 		return fmt.Errorf("unknown game %q", *gameName)
 	}
 	if *output == "" {
@@ -59,7 +59,7 @@ func run() error {
 	defer cancel()
 	client := cardmarket.NewClient(appToken, appSecret)
 
-	expansions, err := client.Expansions(ctx, gameID)
+	expansions, err := client.Expansions(ctx, game)
 	if err != nil {
 		return err
 	}

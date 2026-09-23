@@ -6,60 +6,6 @@ import (
 	"testing"
 )
 
-// Cardmarket has no game-agnostic product path, so a URL missing its game
-// segment 404s rather than degrading to a general search.
-func TestGameName(t *testing.T) {
-	if got := GameName(GameMagic); got != "Magic" {
-		t.Errorf("GameName(magic) = %q, want Magic", got)
-	}
-	if got := GameName(GameLorcana); got != "Lorcana" {
-		t.Errorf("GameName(lorcana) = %q, want Lorcana", got)
-	}
-	if got := GameName(GamePokemon); got != "Pokemon" {
-		t.Errorf("GameName(pokemon) = %q, want Pokemon", got)
-	}
-	// A game whose catalog is not covered has no spelling to use.
-	if got := GameName(GameForceOfWill); got != "" {
-		t.Errorf("GameName(forceofwill) = %q, want empty", got)
-	}
-	if got := GameName(0); got != "" {
-		t.Errorf("GameName(0) = %q, want empty", got)
-	}
-}
-
-// The ids are a bare iota run, so a game inserted in the wrong place
-// renumbers every game after it - and nothing would say so, because the
-// numbers only ever leave this package inside a download path. Pinning them
-// turns that into a failing test rather than a game quietly priced from
-// another game's catalog file. Each number here was read off the published
-// catalog at downloads.s3.cardmarket.com: the file for 24 shelves "Gundam
-// Single", 23's shelves "Cyberpunk Single".
-//
-// A table of pairs rather than a map: two constants that collide are the
-// failure being guarded against, and a map literal would not compile.
-func TestGameIDs(t *testing.T) {
-	ids := []struct {
-		name string
-		got  int
-		want int
-	}{
-		{"Magic", GameMagic, 1},
-		{"YuGiOh", GameYuGiOh, 3},
-		{"Pokemon", GamePokemon, 6},
-		{"FleshAndBlood", GameFleshAndBlood, 16},
-		{"OnePiece", GameOnePiece, 18},
-		{"Lorcana", GameLorcana, 19},
-		{"Riftbound", GameRiftbound, 22},
-		{"Cyberpunk", GameCyberpunk, 23},
-		{"Gundam", GameGundam, 24},
-	}
-	for _, id := range ids {
-		if id.got != id.want {
-			t.Errorf("%s = %d, want %d", id.name, id.got, id.want)
-		}
-	}
-}
-
 func TestSearchURL(t *testing.T) {
 	raw := SearchURL("Ariel - Singing Mermaid", GameLorcana, "mtgban")
 	u, err := parseChecked(t, raw)
@@ -85,9 +31,9 @@ func TestSearchURL(t *testing.T) {
 		t.Errorf("magic search url = %s", raw)
 	}
 
-	// Same contract as BuildURL for a game that is not covered.
-	if got := SearchURL("Chaos", GameForceOfWill, "mtgban"); got != "" {
-		t.Errorf("uncovered game = %q, want empty", got)
+	// Same contract as BuildURL for a number that names no game.
+	if got := SearchURL("Chaos", 0, "mtgban"); got != "" {
+		t.Errorf("unknown game = %q, want empty", got)
 	}
 }
 
@@ -110,10 +56,17 @@ func TestBuildURL(t *testing.T) {
 		t.Errorf("affiliate params = %v", q)
 	}
 
-	// A game the name table carries no entry for builds no link. Pokemon
-	// stood here until it gained one.
-	if got := BuildURL(1, GameForceOfWill, "", Finish{}); got != "" {
-		t.Errorf("uncovered game = %q, want empty", got)
+	// A number the name table carries no entry for builds no link.
+	if got := BuildURL(1, 4, "", Finish{}); got != "" {
+		t.Errorf("unknown game = %q, want empty", got)
+	}
+
+	// Every game the marketplace carries builds one now, including the
+	// ones no caller here prices.
+	for game := range gameNames {
+		if got := BuildURL(1, game, "", Finish{}); got == "" {
+			t.Errorf("game %d (%s) built no link", game, GameName(game))
+		}
 	}
 	// No flags set omits all three rather than sending a falsy value.
 	if raw := BuildURL(1, GameMagic, "", Finish{}); strings.Contains(raw, "isFoil") ||
@@ -144,43 +97,4 @@ func parseChecked(t *testing.T, raw string) (*url.URL, error) {
 		t.Fatal("empty url")
 	}
 	return url.Parse(raw)
-}
-
-// GameFromName lets a caller pass the name it already knows a game by, so
-// the two directions have to agree for every covered catalog - they read the
-// same table precisely so adding a game cannot extend one and not the other.
-func TestGameFromName(t *testing.T) {
-	for idGame, name := range gameNames {
-		if got := GameFromName(name); got != idGame {
-			t.Errorf("GameFromName(%q) = %d, want %d", name, got, idGame)
-		}
-		// Callers spell games in their own case ("lorcana", "Magic").
-		if got := GameFromName(strings.ToLower(name)); got != idGame {
-			t.Errorf("GameFromName(%q) = %d, want %d", strings.ToLower(name), got, idGame)
-		}
-		if got := GameFromName(strings.ToUpper(name)); got != idGame {
-			t.Errorf("GameFromName(%q) = %d, want %d", strings.ToUpper(name), got, idGame)
-		}
-	}
-
-	// An unnamed game is the default one rather than an unknown one.
-	if got := GameFromName(""); got != GameMagic {
-		t.Errorf("GameFromName(\"\") = %d, want Magic (%d)", got, GameMagic)
-	}
-
-	// A game this package does not carry has no id, and the URL builders
-	// turn that into no link rather than a wrong one. Pokemon used to stand
-	// here and now carries an id of its own, so the example is a game the
-	// table still names nothing for.
-	for _, name := range []string{"digimon", "Magic: The Gathering"} {
-		if got := GameFromName(name); got != 0 {
-			t.Errorf("GameFromName(%q) = %d, want 0", name, got)
-		}
-	}
-	if got := SearchURL("Agumon", GameFromName("digimon"), "mtgban"); got != "" {
-		t.Errorf("uncovered game produced %q, want no link", got)
-	}
-	if got := BuildURL(1, GameFromName("digimon"), "mtgban", Finish{}); got != "" {
-		t.Errorf("uncovered game produced %q, want no link", got)
-	}
 }
