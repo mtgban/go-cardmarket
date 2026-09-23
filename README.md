@@ -166,6 +166,16 @@ MKM_APP_TOKEN=... MKM_APP_SECRET=... \
 
 Flags:
 - `-game` — `lorcana`, `riftbound`, `gundam`, `onepiece`, `pokemon`, `yugioh`, `fleshandblood`
+- `-previous` — a catalog to carry an unanswerable expansion's products over
+  from, read only when the walk leaves one. The API intermittently answers
+  5xx for a particular expansion however many times it is asked; rather than
+  throwing away the whole walk over one shelf, its products are taken from
+  this file and the expansion is named in `meta.unwalked`. A shelf added
+  since the last good walk has nothing to carry over and is recorded with no
+  products rather than failing the run — it would have been missing either
+  way, and failing would leave every other shelf a day stale too. What does
+  still fail the run is a `-previous` that cannot be read at all, and more
+  than a tenth of the expansions going unanswered.
 - `-output` — a path, or a `b2://bucket/object` one; an `.xz` suffix compresses it
 
 A `b2://` output reads `B2_APPLICATION_KEY_ID` and `B2_APPLICATION_KEY` — the
