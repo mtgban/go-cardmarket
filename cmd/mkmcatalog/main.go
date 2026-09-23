@@ -85,6 +85,16 @@ func run() error {
 	}
 
 	if len(failed) > 0 {
+		// Carrying over is for a shelf the API would not answer for. A
+		// walk cut short by its own deadline or a cancelled context has
+		// not been refused anything - the expansions it never reached
+		// would carry over on a technicality, and a late deadline could
+		// republish up to a tenth of the game from yesterday without
+		// ever saying the walk did not finish.
+		if ctx.Err() != nil {
+			return fmt.Errorf("walk did not finish (%d of %d expansions unanswered): %w",
+				len(failed), len(expansions), ctx.Err())
+		}
 		if limit := carryLimit(len(expansions)); len(failed) > limit {
 			return fmt.Errorf("%d of %d expansions went unanswered, more than the %d a carry-over covers",
 				len(failed), len(expansions), limit)
@@ -146,6 +156,14 @@ func walk(ctx context.Context, client *cardmarket.Client,
 	var failed []unanswered
 
 	for i, expansion := range expansions {
+		// A cancelled context fails every remaining expansion instantly,
+		// which would otherwise walk the rest of the game just to mark
+		// it all unanswered. run refuses to carry any of it over.
+		if ctx.Err() != nil {
+			log.Printf("Stopping the walk at %d/%d: %v", i+1, len(expansions), ctx.Err())
+			break
+		}
+
 		products, err := client.ExpansionSingles(ctx, expansion.IDExpansion)
 		if err != nil {
 			log.Printf("[%d/%d] %s: %v", i+1, len(expansions), expansion.Name, err)
