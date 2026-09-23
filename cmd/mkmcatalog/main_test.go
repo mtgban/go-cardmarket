@@ -196,3 +196,66 @@ func TestCarryLimit(t *testing.T) {
 		}
 	}
 }
+
+// A cancelled context must stop the walk rather than march through the rest
+// of the game marking every shelf unanswered - those would then carry over
+// on a technicality, republishing yesterday for expansions nothing ever
+// asked about. Nothing is reported unanswered because nothing was asked.
+func TestWalkStopsOnCancel(t *testing.T) {
+	catalog := freshCatalog()
+	before := len(catalog.Data.Expansions)
+	// Ids the fixture does not already hold, so what is asserted is what
+	// the walk did rather than what it was handed.
+	expansions := []cardmarket.Expansion{
+		{IDExpansion: 7, Name: "First"},
+		{IDExpansion: 8, Name: "Second"},
+		{IDExpansion: 9, Name: "Third"},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// A real client with no network behind it: were the walk to ask, every
+	// expansion would come back a failure, which is exactly what must not
+	// happen.
+	failed := walk(ctx, cardmarket.NewClient("test-token", "test-secret"), expansions, &catalog)
+
+	if len(failed) != 0 {
+		t.Errorf("walk reported %d unanswered expansion(s) on a cancelled context, want 0", len(failed))
+	}
+	if got := len(catalog.Data.Expansions); got != before {
+		t.Errorf("catalog holds %d expansions, want the %d it started with", got, before)
+	}
+}
+
+// A shelf that has been refused every run since the last good one is a
+// different problem from one having a bad morning, and only the previous
+// file's own meta can tell them apart.
+func TestCarryOverNamesAPersistentlyUnreadShelf(t *testing.T) {
+	previous := cardmarket.Catalog{}
+	previous.Meta.Date = "2026-09-21"
+	previous.Meta.Unwalked = []int{1645}
+	previous.Data.Expansions = map[int]cardmarket.CatalogExpansion{1645: {Name: "Pokémon Products"}}
+	previous.Data.Products = map[int]cardmarket.CatalogProduct{
+		10: {ExpansionID: 1645, Name: "Pikachu"},
+	}
+	path := writePrevious(t, previous)
+
+	catalog := freshCatalog()
+	failed := []unanswered{{
+		expansion: cardmarket.Expansion{IDExpansion: 1645, Name: "Pokémon Products"},
+		err:       errors.New("cardmarket: 503 Service Unavailable after 4 attempt(s)"),
+	}}
+
+	if err := carryOver(context.Background(), path, failed, &catalog); err != nil {
+		t.Fatalf("carryOver() = %v", err)
+	}
+	// Carrying a shelf on from a file that had already carried it on keeps
+	// it in the catalog, and keeps saying so.
+	if _, ok := catalog.Data.Products[10]; !ok {
+		t.Error("product was not carried over")
+	}
+	if len(catalog.Meta.Unwalked) != 1 || catalog.Meta.Unwalked[0] != 1645 {
+		t.Errorf("meta.Unwalked = %v, want [1645]", catalog.Meta.Unwalked)
+	}
+}

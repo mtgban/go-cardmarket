@@ -92,8 +92,8 @@ func run() error {
 		// republish up to a tenth of the game from yesterday without
 		// ever saying the walk did not finish.
 		if ctx.Err() != nil {
-			return fmt.Errorf("walk did not finish (%d of %d expansions unanswered): %w",
-				len(failed), len(expansions), ctx.Err())
+			return fmt.Errorf("walk did not finish (%d of %d expansions read): %w",
+				len(catalog.Data.Expansions), len(expansions), ctx.Err())
 		}
 		if limit := carryLimit(len(expansions)); len(failed) > limit {
 			return fmt.Errorf("%d of %d expansions went unanswered, more than the %d a carry-over covers",
@@ -260,6 +260,16 @@ func carryOver(ctx context.Context, path string, failed []unanswered,
 
 	for _, one := range failed {
 		id := one.expansion.IDExpansion
+		// A shelf the API refuses once is a bad morning; one it has
+		// refused every run since is a shelf nobody is reading, and the
+		// catalog would go on quietly carrying or emptying it with
+		// nothing to say how long that had been true. The previous
+		// file's own meta answers it for nothing.
+		stuck := ""
+		if slices.Contains(old.Meta.Unwalked, id) {
+			stuck = fmt.Sprintf(" - and %s did not walk it either, so it has gone unread since at least %s",
+				path, old.Meta.Date)
+		}
 		// The expansion's own name and code come from this run's
 		// Expansions call, which succeeded - only its products are old.
 		catalog.Data.Expansions[id] = cardmarket.CatalogExpansion{
@@ -270,12 +280,12 @@ func carryOver(ctx context.Context, path string, failed []unanswered,
 
 		if carried[id] == 0 {
 			log.Printf("Expansion %d %q went unanswered (%v) and %s has nothing for it, "+
-				"so it is in this catalog with no products - a shelf added since the last good walk",
-				id, one.expansion.Name, one.err, path)
+				"so it is in this catalog with no products - a shelf added since the last good walk%s",
+				id, one.expansion.Name, one.err, path, stuck)
 			continue
 		}
-		log.Printf("Carried %d products over for expansion %d %q, unanswered (%v), from %s",
-			carried[id], id, one.expansion.Name, one.err, path)
+		log.Printf("Carried %d products over for expansion %d %q, unanswered (%v), from %s%s",
+			carried[id], id, one.expansion.Name, one.err, path, stuck)
 	}
 	slices.Sort(catalog.Meta.Unwalked)
 
