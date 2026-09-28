@@ -75,8 +75,7 @@ func TestBuildURLZeroOption(t *testing.T) {
 	raw := BuildURL(GameMagic, 1, URLOption{})
 	q := mustQuery(t, raw)
 	for _, param := range []string{
-		"isFoil", "isFirstEd", "isReverseHolo",
-		"extra[isSigned]", "extra[isAltered]", "language",
+		"isFoil", "isFirstEd", "isReverseHolo", "isSigned", "isAltered", "language",
 	} {
 		if got := q.Get(param); got != "" {
 			t.Errorf("zero option sent %s=%q", param, got)
@@ -100,30 +99,40 @@ func TestBuildURLFinishFlags(t *testing.T) {
 	}
 }
 
-// The listing flags are spelled differently from the finish flags by the
-// marketplace, not by this package: a nested extra[...] where isFoil is
-// bare. Both spellings were read off the site's own filter form, and
-// getting either wrong produces a link that silently filters nothing -
-// Cardmarket ignores a parameter it does not recognise rather than
-// refusing it.
+// Signed and altered are bare parameters, like isFoil.
 func TestBuildURLExclusions(t *testing.T) {
 	raw := BuildURL(GameMagic, 1, URLOption{Signed: None, Altered: None})
 	q := mustQuery(t, raw)
-	if q.Get("extra[isSigned]") != "N" {
-		t.Errorf("extra[isSigned] = %q, want N", q.Get("extra[isSigned]"))
+	if q.Get("isSigned") != "N" || q.Get("isAltered") != "N" {
+		t.Errorf("exclusions = %v, want isSigned=N and isAltered=N", q)
 	}
-	if q.Get("extra[isAltered]") != "N" {
-		t.Errorf("extra[isAltered] = %q, want N", q.Get("extra[isAltered]"))
-	}
-	// The brackets have to survive encoding to reach the server intact.
-	if !strings.Contains(raw, "extra%5BisSigned%5D=N") {
-		t.Errorf("encoded url lost the bracket form: %s", raw)
+	if strings.Contains(raw, "extra") {
+		t.Errorf("exclusions sent nested: %s", raw)
 	}
 
 	// Asked for separately, only the one asked for is sent.
 	q = mustQuery(t, BuildURL(GameMagic, 1, URLOption{Signed: None}))
-	if q.Get("extra[isSigned]") != "N" || q.Get("extra[isAltered]") != "" {
+	if q.Get("isSigned") != "N" || q.Get("isAltered") != "" {
 		t.Errorf("signed-only exclusion sent %v", q)
+	}
+}
+
+// Village Bell-Ringer's foil in English, neither signed nor altered.
+// Compared as a whole string: a parsed query reads back a spelling the
+// storefront ignores as happily as one it reads.
+func TestBuildURLVillageBellRinger(t *testing.T) {
+	const tag = "&utm_campaign=card_prices&utm_medium=text&utm_source=mtgban"
+	opt := URLOption{
+		Foil:      Only,
+		Signed:    None,
+		Altered:   None,
+		Language:  LanguageEnglish,
+		Affiliate: "mtgban",
+	}
+	want := "https://www.cardmarket.com/en/Magic/Products?idProduct=250689" +
+		"&isAltered=N&isFoil=Y&isSigned=N&language=1" + tag
+	if got := BuildURL(GameMagic, 250689, opt); got != want {
+		t.Errorf("got  %s\nwant %s", got, want)
 	}
 }
 
@@ -134,7 +143,10 @@ func TestSearchURLTakesTheSameOption(t *testing.T) {
 	search := mustQuery(t, SearchURL(GamePokemon, "Pikachu", opt))
 	build := mustQuery(t, BuildURL(GamePokemon, 1, opt))
 
-	for _, param := range []string{"isFoil", "extra[isSigned]", "extra[isAltered]", "language"} {
+	for _, param := range []string{"isFoil", "isSigned", "isAltered", "language"} {
+		if build.Get(param) == "" {
+			t.Errorf("%s: not sent", param)
+		}
 		if search.Get(param) != build.Get(param) {
 			t.Errorf("%s: search %q, build %q", param, search.Get(param), build.Get(param))
 		}
@@ -173,13 +185,13 @@ func TestBuildURLFilterStates(t *testing.T) {
 		opt  URLOption
 		want map[string]string
 	}{
-		{"any sends nothing", URLOption{}, map[string]string{"isFoil": "", "extra[isSigned]": ""}},
+		{"any sends nothing", URLOption{}, map[string]string{"isFoil": "", "isSigned": ""}},
 		{"only foil", URLOption{Foil: Only}, map[string]string{"isFoil": "Y"}},
 		{"non-foil only", URLOption{Foil: None}, map[string]string{"isFoil": "N"}},
-		{"only signed", URLOption{Signed: Only}, map[string]string{"extra[isSigned]": "Y"}},
-		{"no signed", URLOption{Signed: None}, map[string]string{"extra[isSigned]": "N"}},
+		{"only signed", URLOption{Signed: Only}, map[string]string{"isSigned": "Y"}},
+		{"no signed", URLOption{Signed: None}, map[string]string{"isSigned": "N"}},
 		{"no altered, any foil", URLOption{Altered: None},
-			map[string]string{"extra[isAltered]": "N", "isFoil": ""}},
+			map[string]string{"isAltered": "N", "isFoil": ""}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
