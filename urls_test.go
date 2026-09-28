@@ -75,7 +75,8 @@ func TestBuildURLZeroOption(t *testing.T) {
 	raw := BuildURL(GameMagic, 1, URLOption{})
 	q := mustQuery(t, raw)
 	for _, param := range []string{
-		"isFoil", "isFirstEd", "isReverseHolo", "isSigned", "isAltered", "language",
+		"isFoil", "isFirstEd", "isReverseHolo", "isSigned", "isAltered",
+		"sellerType", "sellerCountry", "language",
 	} {
 		if got := q.Get(param); got != "" {
 			t.Errorf("zero option sent %s=%q", param, got)
@@ -117,9 +118,10 @@ func TestBuildURLExclusions(t *testing.T) {
 	}
 }
 
-// Village Bell-Ringer's foil in English, neither signed nor altered.
-// Compared as a whole string: a parsed query reads back a spelling the
-// storefront ignores as happily as one it reads.
+// Village Bell-Ringer's foil in English, neither signed nor altered, then
+// the same narrowed to German and Dutch powersellers. Compared as whole
+// strings: a parsed query reads back a spelling the storefront ignores as
+// happily as one it reads.
 func TestBuildURLVillageBellRinger(t *testing.T) {
 	const tag = "&utm_campaign=card_prices&utm_medium=text&utm_source=mtgban"
 	opt := URLOption{
@@ -134,16 +136,75 @@ func TestBuildURLVillageBellRinger(t *testing.T) {
 	if got := BuildURL(GameMagic, 250689, opt); got != want {
 		t.Errorf("got  %s\nwant %s", got, want)
 	}
+
+	opt.SellerTypes = []UserType{UserTypePowerseller}
+	opt.SellerCountries = []Country{CountryNetherlands, CountryGermany}
+	want = "https://www.cardmarket.com/en/Magic/Products?idProduct=250689" +
+		"&isAltered=N&isFoil=Y&isSigned=N&language=1" +
+		"&sellerCountry=7%2C23&sellerType=2" + tag
+	if got := BuildURL(GameMagic, 250689, opt); got != want {
+		t.Errorf("got  %s\nwant %s", got, want)
+	}
+}
+
+// A list is one parameter, its values joined by commas in ascending order
+// whatever order they were named in.
+func TestBuildURLSellers(t *testing.T) {
+	tests := []struct {
+		name  string
+		opt   URLOption
+		param string
+		want  string
+	}{
+		{"powersellers", URLOption{SellerTypes: []UserType{UserTypePowerseller}},
+			"sellerType", "2"},
+		{"every type", URLOption{SellerTypes: []UserType{UserTypePowerseller, UserTypePrivate, UserTypeCommercial}},
+			"sellerType", "0,1,2"},
+		{"private alone is not no filter", URLOption{SellerTypes: []UserType{UserTypePrivate}},
+			"sellerType", "0"},
+		{"a type with no number is left out", URLOption{SellerTypes: []UserType{"wholesale"}},
+			"sellerType", ""},
+		{"one country", URLOption{SellerCountries: []Country{CountryGermany}},
+			"sellerCountry", "7"},
+		{"two countries, named backwards", URLOption{SellerCountries: []Country{CountryNetherlands, CountryGermany}},
+			"sellerCountry", "7,23"},
+		{"a country named twice", URLOption{SellerCountries: []Country{CountryJapan, CountryGermany, CountryJapan}},
+			"sellerCountry", "7,36"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := mustQuery(t, BuildURL(GameMagic, 1, tt.opt))
+			if got := q.Get(tt.param); got != tt.want {
+				t.Errorf("%s = %q, want %q", tt.param, got, tt.want)
+			}
+		})
+	}
+
+	// Sorting the list is the builder's business, not the caller's slice.
+	countries := []Country{CountryNetherlands, CountryGermany}
+	BuildURL(GameMagic, 1, URLOption{SellerCountries: countries})
+	if countries[0] != CountryNetherlands {
+		t.Errorf("caller's countries reordered to %v", countries)
+	}
 }
 
 // Whatever the option narrows, it narrows both builders. They read the same
 // values precisely so a filter added to one cannot quietly skip the other.
 func TestSearchURLTakesTheSameOption(t *testing.T) {
-	opt := URLOption{Foil: Only, Signed: None, Altered: None, Language: LanguageJapanese}
+	opt := URLOption{
+		Foil:            Only,
+		Signed:          None,
+		Altered:         None,
+		SellerTypes:     []UserType{UserTypeCommercial, UserTypePowerseller},
+		SellerCountries: []Country{CountryJapan},
+		Language:        LanguageJapanese,
+	}
 	search := mustQuery(t, SearchURL(GamePokemon, "Pikachu", opt))
 	build := mustQuery(t, BuildURL(GamePokemon, 1, opt))
 
-	for _, param := range []string{"isFoil", "isSigned", "isAltered", "language"} {
+	for _, param := range []string{
+		"isFoil", "isSigned", "isAltered", "sellerType", "sellerCountry", "language",
+	} {
 		if build.Get(param) == "" {
 			t.Errorf("%s: not sent", param)
 		}

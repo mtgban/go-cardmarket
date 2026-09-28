@@ -168,7 +168,23 @@ page showing foils is quoting from a shelf the reader cannot see.
 
 Every flag is a bare parameter (`isFoil=N`, `isSigned=N`, `isAltered=N`).
 
-`Language` and `Affiliate` are the two fields that are not `Filter`s.
+`SellerTypes` and `SellerCountries` narrow by who is selling. Each is a list,
+as the storefront's own controls are, and is written as one parameter with its
+values joined by commas in ascending order, whatever order they were named in:
+
+```go
+cardmarket.URLOption{
+    SellerTypes:     []cardmarket.UserType{cardmarket.UserTypePowerseller},
+    SellerCountries: []cardmarket.Country{cardmarket.CountryNetherlands, cardmarket.CountryGermany},
+}
+```
+
+The storefront numbers the seller types where the API names them, so the
+`UserType` words are translated on the way out: powerseller is `2`, and
+private and professional are taken to be `0` and `1`, as an `Article`'s
+`IsCommercial` numbers them.
+
+`Language` and `Affiliate` are not `Filter`s either.
 `Language` is the one this package used to send as English whether or not
 anyone asked. `Affiliate` used to be a positional parameter beside the card's
 name in `SearchURL` — two adjacent strings, which transpose sooner or later
