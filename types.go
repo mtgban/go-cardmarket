@@ -319,8 +319,9 @@ func ConditionFromName(name string) Condition {
 // Alone among these, it carries no Name and no FromName: its values are
 // already the words the marketplace uses, so a table would map each one to
 // itself. Note that an Article decodes the same idea as a number instead -
-// ArticleSeller.IsCommercial, 0, 1 and 2 - which is the marketplace's
-// inconsistency, not one worth hiding behind a shared type.
+// ArticleSeller.IsCommercial, 0, 1 and 2 - and the storefront's sellerType
+// filter numbers it too (see URLOption.SellerTypes), which is the
+// marketplace's inconsistency, not one worth hiding behind a shared type.
 type UserType string
 
 // The seller types an article may be filtered to.

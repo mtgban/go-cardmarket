@@ -3,6 +3,9 @@ package cardmarket
 import (
 	"fmt"
 	"net/url"
+	"slices"
+	"strconv"
+	"strings"
 )
 
 // URLOption is everything that shapes a storefront link but the game and the
@@ -41,6 +44,16 @@ type URLOption struct {
 	Signed  Filter
 	Altered Filter
 
+	// SellerTypes and SellerCountries narrow to the listings of the kinds
+	// of seller named, based in the countries named: UserTypePowerseller
+	// with CountryGermany and CountryNetherlands is the German and Dutch
+	// powersellers alone. Each is a list because the storefront's own
+	// controls are, and an empty one asks for every seller. The order
+	// given does not matter; the link is the same either way. A seller
+	// type the storefront has no number for is left out.
+	SellerTypes     []UserType
+	SellerCountries []Country
+
 	// Language asks the page to prefer one language, which it honours
 	// where the card has a printing in it and quietly ignores where it
 	// does not. Zero asks for nothing; LanguageEnglish is the usual
@@ -71,6 +84,31 @@ func (f Filter) set(v url.Values, name string) {
 	}
 }
 
+// sellerTypes numbers the seller types as the storefront's sellerType does.
+// Powerseller is 2 there; private and professional are assumed to follow
+// ArticleSeller.IsCommercial's 0 and 1.
+var sellerTypes = map[UserType]int{
+	UserTypePrivate:     0,
+	UserTypeCommercial:  1,
+	UserTypePowerseller: 2,
+}
+
+// setList writes a multiple choice as the storefront's own links do: one
+// parameter, its values joined by commas in ascending order. An empty list
+// writes nothing, which is every value at once.
+func setList(v url.Values, name string, ids []int) {
+	if len(ids) == 0 {
+		return
+	}
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = strconv.Itoa(id)
+	}
+	v.Set(name, strings.Join(parts, ","))
+}
+
 // values renders the option as the parameters the storefront reads. Every
 // flag is a bare parameter taking Y or N.
 func (opt URLOption) values() url.Values {
@@ -81,6 +119,20 @@ func (opt URLOption) values() url.Values {
 	opt.ReverseHolo.set(v, "isReverseHolo")
 	opt.Signed.set(v, "isSigned")
 	opt.Altered.set(v, "isAltered")
+
+	var types []int
+	for _, userType := range opt.SellerTypes {
+		if n, ok := sellerTypes[userType]; ok {
+			types = append(types, n)
+		}
+	}
+	setList(v, "sellerType", types)
+
+	countries := make([]int, len(opt.SellerCountries))
+	for i, country := range opt.SellerCountries {
+		countries[i] = int(country)
+	}
+	setList(v, "sellerCountry", countries)
 
 	if opt.Language != 0 {
 		v.Set("language", fmt.Sprint(int(opt.Language)))
