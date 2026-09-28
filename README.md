@@ -164,9 +164,9 @@ nothing, `Only` asks for the listings that carry it, `None` for the ones that
 do not. `Any` is the zero value, so `URLOption{}` narrows nothing.
 
 `None` earns its place on the finishes too — a non-foil price that links to a
-page showing foils is quoting from a shelf the reader cannot see. The
-spellings differ (`isFoil=N` is bare, `extra[isAltered]=N` is nested), which
-is the marketplace's doing, not this package's.
+page showing foils is quoting from a shelf the reader cannot see.
+
+Every flag is a bare parameter (`isFoil=N`, `isSigned=N`, `isAltered=N`).
 
 `Language` and `Affiliate` are the two fields that are not `Filter`s.
 `Language` is the one this package used to send as English whether or not

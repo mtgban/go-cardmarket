@@ -71,21 +71,16 @@ func (f Filter) set(v url.Values, name string) {
 	}
 }
 
-// values renders the option as the parameters the storefront reads.
-//
-// The finish flags and the listing flags are spelled differently by the
-// marketplace, and neither spelling is this package's invention: isFoil is a
-// bare parameter, while a signed or altered filter is a nested extra[...].
-// Both take Y and N, both were read off the site's own filter form, and both
-// were confirmed to partition a real product's listings.
+// values renders the option as the parameters the storefront reads. Every
+// flag is a bare parameter taking Y or N.
 func (opt URLOption) values() url.Values {
 	v := url.Values{}
 
 	opt.Foil.set(v, "isFoil")
 	opt.FirstEd.set(v, "isFirstEd")
 	opt.ReverseHolo.set(v, "isReverseHolo")
-	opt.Signed.set(v, "extra[isSigned]")
-	opt.Altered.set(v, "extra[isAltered]")
+	opt.Signed.set(v, "isSigned")
+	opt.Altered.set(v, "isAltered")
 
 	if opt.Language != 0 {
 		v.Set("language", fmt.Sprint(int(opt.Language)))
