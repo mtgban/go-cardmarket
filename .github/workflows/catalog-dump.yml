@@ -99,10 +99,12 @@ jobs:
           path: cardmarket_catalog.json.xz
           retention-days: 7
 
+      # Pinned: this runs after a walk of up to three hours, and a CLI
+      # release that changes the command would lose the day's upload.
       - name: Upload to B2
         env:
           B2_APPLICATION_KEY_ID: ${{ secrets.B2_APPLICATION_KEY_ID_DATASTORE }}
           B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY_DATASTORE }}
         run: |
-          pipx install b2
+          pipx install b2==5.0.0
           b2 file upload mtgban-datastore cardmarket_catalog.json.xz ${{ matrix.game }}/cardmarket_catalog.json.xz
