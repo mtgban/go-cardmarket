@@ -10,9 +10,9 @@ import (
 	"testing"
 )
 
-// The two budgets exist because the two failures are not the same failure,
-// and the cost of confusing them was a whole dump: expansion 1645 answered
-// 21 straight 5xx over six minutes and took the Pokemon catalog with it.
+// The two budgets exist because the two failures are not the same failure:
+// a 429 clears when waited out, and a 5xx on one request does not (see
+// serverErrorRetries).
 //
 // Retry-After is honoured for both 429 and 503 (retryablehttp's own default
 // backoff), so a zero here runs the real client through its real policy at
@@ -29,16 +29,12 @@ func TestRetryBudgets(t *testing.T) {
 		{"rate limit keeps the full budget", http.StatusTooManyRequests, "", rateLimitRetries + 1},
 		// A 5xx is the API unwell on this one request. It does not clear.
 		{"server error gets the short budget", http.StatusServiceUnavailable, "", serverErrorRetries},
-		// The body must not decide whether the status was an error. A
-		// 5xx answering the shape being decoded once read as a clean
-		// empty result, which in a catalog walk is a shelf recorded
-		// with no cards and every card on it quietly unpriced.
+		// The body must not decide whether the status was an error: a
+		// 5xx answering {"single":[]} would read as an empty shelf.
 		{"server error carrying a decodable body is still an error",
 			http.StatusServiceUnavailable, `{"single":[]}`, serverErrorRetries},
-		// 503 rather than 500 for both: DefaultBackoff honours
-		// Retry-After only for 429 and 503, so any other 5xx would make
-		// this sleep through the real 2-4-8 second backoff for a code
-		// path that is identical either way.
+		// 503 rather than 500: DefaultBackoff honours Retry-After only
+		// for 429 and 503, and any other 5xx sleeps the real backoff.
 		{"server error carrying an error page is still an error",
 			http.StatusServiceUnavailable, `<html>oops</html>`, serverErrorRetries},
 	}

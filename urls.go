@@ -56,19 +56,12 @@ type URLOption struct {
 
 	// Language asks the page to prefer one language, which it honours
 	// where the card has a printing in it and quietly ignores where it
-	// does not. Zero asks for nothing; LanguageEnglish is the usual
-	// choice and was what this package used to send unconditionally.
+	// does not. Zero asks for nothing; LanguageEnglish is the usual choice.
 	Language Language
 
-	// Affiliate is the tag the link is attributed to, empty for none.
-	//
-	// It sits here rather than beside the name it used to follow because
-	// two adjacent strings are two strings in the wrong order sooner or
-	// later, and SearchURL's pair compiled perfectly that way: a search
-	// of the catalog for the affiliate, tagged with the card's name.
-	// Named at the call site, that cannot happen - at the cost of being
-	// quietly omittable, which loses a tag rather than building a wrong
-	// link.
+	// Affiliate is the tag the link is attributed to, empty for none. It
+	// is a named field so it cannot be transposed with SearchURL's name;
+	// the cost is that leaving it out loses the tag without a word.
 	Affiliate string
 }
 

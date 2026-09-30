@@ -82,7 +82,7 @@ watch against the daily allowance.
 - **Products**
   - `Product(ctx, productID) (*Product, error)`
 - **Articles** (listings)
-  - `Articles(ctx, productID, options, page, maxResults) ([]Article, error)`
+  - `Articles(ctx, productID, options, page, maxResults) (articles []Article, total int, capped bool, err error)`
 
 `options` is yours to choose. This package spells the filters and picks none
 of them: what condition is worth pricing, and which sellers are worth reading,
@@ -96,6 +96,11 @@ are judgements about your own use, not facts about the marketplace.
 Pages start at zero and the API requires both bounds — asking for a page size
 without a start is refused. `MaxEntities` (**100**) is the largest page it
 serves.
+
+`total` is the listing's full count, read from the response's `Content-Range`,
+so a caller can stop once it has paged through everything; it is `0` when the
+header is missing. `capped` means Cardmarket stopped counting at 1000 and the
+real count is unknown.
 
 ### Two shapes of one Product
 
@@ -184,11 +189,9 @@ The storefront numbers the seller types where the API names them, so the
 private and professional are taken to be `0` and `1`, as an `Article`'s
 `IsCommercial` numbers them.
 
-`Language` and `Affiliate` are not `Filter`s either.
-`Language` is the one this package used to send as English whether or not
-anyone asked. `Affiliate` used to be a positional parameter beside the card's
-name in `SearchURL` — two adjacent strings, which transpose sooner or later
-into a search for the affiliate tagged with the card. Named, it cannot.
+`Language` asks the page to prefer one language, and sends nothing at zero.
+`Affiliate` tags the link with `utm_source`, `utm_medium` and `utm_campaign`,
+and sends nothing when empty.
 
 Both builders return `""` for a number that names no game, rather than a link
 to a path the site does not serve.
@@ -265,18 +268,20 @@ Flags:
   this file and the expansion is named in `meta.unwalked`. A shelf added
   since the last good walk has nothing to carry over and is recorded with no
   products rather than failing the run — it would have been missing either
-  way, and failing would leave every other shelf a day stale too. What does
-  still fail the run is a `-previous` that cannot be read at all, and more
-  than a tenth of the expansions going unanswered.
+  way, and failing would leave every other shelf a day stale too.
 - `-output` — a path, or a `b2://bucket/object` one; an `.xz` suffix compresses it
 
 A `b2://` output reads `B2_APPLICATION_KEY_ID` and `B2_APPLICATION_KEY` — the
 same names the `b2` command line uses, so one pair of credentials works for
 both.
 
-Any expansion failing fails the run. The client already retries the transient
-errors, and a partial catalog uploaded on schedule would silently unprice
-whatever it dropped.
+An expansion the API will not answer for gets one more try at the end of the
+walk before it is carried over. The run fails, rather than publish a catalog
+that silently unprices whatever it dropped, when:
+
+- the walk does not finish within its three-hour deadline
+- more than a tenth of the expansions go unanswered
+- an expansion needs carrying over and `-previous` is missing or unreadable
 
 ### mkmpriceguide
 

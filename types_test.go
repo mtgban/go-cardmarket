@@ -142,10 +142,8 @@ func TestDocumentedIDs(t *testing.T) {
 		{"Portugal", CountryPortugal, 26},
 		{"Romania", CountryRomania, 27},
 		{"Sweden", CountrySweden, 28},
-		// Singapore, Canada and Japan are on the marketplace's own
-		// seller-country filter and absent from its documentation,
-		// which is where the rest of these came from. The blanks at 32
-		// and 34 are numbers it answers for no country.
+		// Singapore, Canada and Japan are on the seller-country filter
+		// but not in the documentation; 32 and 34 name no country.
 		{"Singapore", CountrySingapore, 29},
 		{"Slovenia", CountrySlovenia, 30},
 		{"Slovakia", CountrySlovakia, 31},
@@ -165,8 +163,7 @@ func TestDocumentedIDs(t *testing.T) {
 }
 
 // Every table is read in both directions, so adding an entry cannot extend
-// one and not the other - the property TestGameFromName used to check for
-// games alone, now that there are four of them.
+// one and not the other.
 func TestNameRoundTrips(t *testing.T) {
 	t.Run("game", func(t *testing.T) {
 		for game, name := range gameNames {

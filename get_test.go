@@ -8,9 +8,9 @@ import (
 )
 
 // A non-2xx status with an empty body must surface as an error, not read as
-// a clean zero-result answer - an edge-level block (403, empty body, no
-// APIError JSON) once did exactly that, silently. A 2xx empty body (204, the
-// documented shape for "the query matched nothing") must still read clean.
+// a clean zero-result answer, which is what an edge-level block (403, empty
+// body, no APIError JSON) looks like. A 2xx empty body (204, the documented
+// shape for "the query matched nothing") must still read clean.
 func TestGetEmptyBodyStatusHandling(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -20,11 +20,8 @@ func TestGetEmptyBodyStatusHandling(t *testing.T) {
 	}{
 		{"403 empty body is an error", http.StatusForbidden, "", true},
 		{"401 empty body is an error", http.StatusUnauthorized, "", true},
-		// 5xx is deliberately not covered here: it's retryablehttp's own
-		// retryable-status set, so a 500 test would actually exercise the
-		// client's full retry/backoff policy (RetryMax=20, several minutes
-		// worst case) rather than the status-check logic under test here.
-		// 403/401 aren't retried and already exercise the same code path.
+		// 5xx is retried, so TestRetryBudgets covers it; 401 and 403 reach
+		// the same check without the backoff.
 		{"204 empty body is a clean success", http.StatusNoContent, "", false},
 		{"200 empty body is a clean success", http.StatusOK, "", false},
 		{"403 with an APIError body still decodes as that error", http.StatusForbidden,

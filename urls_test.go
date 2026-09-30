@@ -69,8 +69,8 @@ func TestBuildURL(t *testing.T) {
 	}
 }
 
-// The zero option asks for no narrowing at all. It used to send language=1
-// whether or not anyone wanted it; now a caller that wants English says so.
+// The zero option asks for no narrowing at all, language included: a caller
+// that wants English says so.
 func TestBuildURLZeroOption(t *testing.T) {
 	raw := BuildURL(GameMagic, 1, URLOption{})
 	q := mustQuery(t, raw)
