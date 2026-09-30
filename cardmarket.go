@@ -68,8 +68,7 @@ type attemptsKey struct{}
 type attempts struct{ serverErrors int }
 
 // withAttempts gives a request its own tally. A request made without one is
-// not refused - it falls back to the single RetryMax budget, which is the old
-// behaviour rather than a new failure.
+// not refused - it falls back to the single RetryMax budget.
 func withAttempts(ctx context.Context) context.Context {
 	return context.WithValue(ctx, attemptsKey{}, &attempts{})
 }
@@ -98,14 +97,9 @@ func checkRetry(ctx context.Context, resp *http.Response, err error) (bool, erro
 		return true, nil
 	}
 
-	// Stopping with a nil error would be read as "this response is the
-	// final, acceptable one": retryablehttp's success test is doErr,
-	// checkErr and shouldRetry all clear, so it would return the 503 as a
-	// response and never reach ErrorHandler. A 503 whose body happens to
-	// fit the shape being decoded - {"single":[]} - would then read as a
-	// shelf with no cards and unprice every card on it, silently, which is
-	// the failure this budget exists to make loud. Stopping with an error
-	// takes the failure path instead.
+	// A nil error would hand the 503 back as the final response without
+	// reaching ErrorHandler, and a body like {"single":[]} would decode as
+	// an empty shelf. An error takes the failure path.
 	if resp != nil {
 		return false, fmt.Errorf("%d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 	}
@@ -251,14 +245,9 @@ func (mkm *Client) get(ctx context.Context, link string, out any) (string, error
 		return contentRange, err
 	}
 
-	// A non-2xx status with an empty body is a real error, not a clean
-	// zero-result answer - retryablehttp's own policy already exhausted its
-	// retries on anything retryable (429, 5xx) before this ever returns, so
-	// what's left is either a genuine rejection (401, 403, ...) or one of
-	// the API's own documented empty successes (204, on a query matching
-	// nothing). Trusting an empty body regardless of status once let an
-	// edge-level block (403, empty body, no APIError JSON to catch it) read
-	// as "no error, nothing found" - silently wrong, not merely incomplete.
+	// The retries are spent by now, so an empty body is either a rejection
+	// (401, or a 403 from the edge with no APIError to catch it) or the
+	// API's documented empty success (204, a query matching nothing).
 	if (resp.StatusCode < 200 || resp.StatusCode >= 300) && len(data) == 0 {
 		return contentRange, fmt.Errorf("cardmarket: %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 	}

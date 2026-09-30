@@ -71,8 +71,8 @@ func TestLoadCatalog(t *testing.T) {
 	if catalog.Meta.Date != "2026-09-03" || catalog.Meta.Version != "5.3.0" {
 		t.Errorf("meta = %+v", catalog.Meta)
 	}
-	// MTGJSON's setCodes are no longer decoded, and a key the struct does
-	// not name must not fail the load.
+	// The fixture carries MTGJSON's setCodes, which the struct does not
+	// name, and an unknown key must not fail the load.
 	if _, err := LoadCatalog(strings.NewReader(catalogFixture)); err != nil {
 		t.Errorf("an unknown key should be ignored, not refused: %v", err)
 	}

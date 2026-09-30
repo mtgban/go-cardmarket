@@ -71,10 +71,9 @@ func run() error {
 
 	failed := walk(ctx, client, expansions, &catalog)
 
-	// One more pass before giving up on them. The 5xx that fails an
-	// expansion is the API unwell on that one request rather than a
-	// property of the shelf - the same expansion walks fine most days -
-	// and by the end of a long walk the moment has usually passed.
+	// One more pass before giving up on them: the 5xx that fails an
+	// expansion is the API unwell on that request, not a property of the
+	// shelf, and by the end of a long walk it has usually passed.
 	if len(failed) > 0 {
 		log.Printf("Retrying %d expansion(s) the API would not answer for", len(failed))
 		again := make([]cardmarket.Expansion, len(failed))
@@ -85,12 +84,9 @@ func run() error {
 	}
 
 	if len(failed) > 0 {
-		// Carrying over is for a shelf the API would not answer for. A
-		// walk cut short by its own deadline or a cancelled context has
-		// not been refused anything - the expansions it never reached
-		// would carry over on a technicality, and a late deadline could
-		// republish up to a tenth of the game from yesterday without
-		// ever saying the walk did not finish.
+		// Carrying over is for a shelf the API refused. A walk cut short
+		// by its deadline was refused nothing, and carrying over what it
+		// never reached would publish old shelves as a finished walk.
 		if ctx.Err() != nil {
 			return fmt.Errorf("walk did not finish (%d of %d expansions read): %w",
 				len(catalog.Data.Expansions), len(expansions), ctx.Err())
@@ -145,12 +141,9 @@ func describe(failed []unanswered) string {
 // walk reads each expansion's singles into the catalog and returns the ones
 // the API would not answer for.
 //
-// A failure no longer ends the walk. It used to, on the reasoning that a
-// partial catalog uploaded on schedule would silently unprice whatever it
-// dropped - which is right, and is why carryOver exists rather than why the
-// other 781 expansions should be thrown away with the one. Two shelves
-// failing this way (1645 "Pokemon Products", 5303 "Unnumbered Promos") cost
-// two whole days of two games' catalogs.
+// A failed expansion does not end the walk: one shelf the API refuses is no
+// reason to throw away the rest, and carryOver fills it from the previous
+// catalog instead.
 func walk(ctx context.Context, client *cardmarket.Client,
 	expansions []cardmarket.Expansion, catalog *cardmarket.Catalog) []unanswered {
 	var failed []unanswered
@@ -194,9 +187,9 @@ func walk(ctx context.Context, client *cardmarket.Client,
 // not answer for is exactly what carrying over is for; most of a game going
 // unanswered is credentials, a deadline or an outage, and carrying all of it
 // over would republish yesterday's catalog as today's and call it a success
-// - the one failure mode worse than the crash this replaced, because nothing
-// would ever say so. The floor of one keeps a game with a handful of
-// expansions from being held to a stricter rule than Pokemon's 782.
+// - worse than failing the run, because nothing would ever say so. The floor
+// of one keeps a game with a handful of expansions from being held to a
+// stricter rule than Pokemon's 782.
 func carryLimit(expansions int) int {
 	return max(1, expansions/10)
 }
@@ -260,11 +253,8 @@ func carryOver(ctx context.Context, path string, failed []unanswered,
 
 	for _, one := range failed {
 		id := one.expansion.IDExpansion
-		// A shelf the API refuses once is a bad morning; one it has
-		// refused every run since is a shelf nobody is reading, and the
-		// catalog would go on quietly carrying or emptying it with
-		// nothing to say how long that had been true. The previous
-		// file's own meta answers it for nothing.
+		// A shelf the previous file also left unwalked has gone unread
+		// for more than one run, which is worth saying.
 		stuck := ""
 		if slices.Contains(old.Meta.Unwalked, id) {
 			stuck = fmt.Sprintf(" - and %s did not walk it either, so it has gone unread since at least %s",
