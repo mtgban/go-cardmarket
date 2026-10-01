@@ -2,8 +2,12 @@ package cardmarket
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -46,5 +50,34 @@ func TestGetEmptyBodyStatusHandling(t *testing.T) {
 				t.Errorf("get() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// A body that does not decode is reported by its status and the decode
+// error, with only the start of the body: an HTML page must not become the
+// whole error message.
+func TestGetUndecodableBody(t *testing.T) {
+	page := "<html>" + strings.Repeat("x", 10000) + "</html>"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprint(w, page)
+	}))
+	defer server.Close()
+
+	var out struct {
+		OK bool `json:"ok"`
+	}
+	_, err := NewClient("test-token", "test-secret").get(context.Background(), server.URL, &out)
+	if err == nil {
+		t.Fatal("get() succeeded, want an error")
+	}
+	var syntaxErr *json.SyntaxError
+	if !errors.As(err, &syntaxErr) {
+		t.Errorf("error does not wrap the decode error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "200 OK") {
+		t.Errorf("error does not name the status: %v", err)
+	}
+	if len(err.Error()) > 400 {
+		t.Errorf("error carries %d bytes, want the body cut short", len(err.Error()))
 	}
 }
