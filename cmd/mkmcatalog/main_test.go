@@ -43,7 +43,7 @@ func freshCatalog() cardmarket.Catalog {
 
 // An expansion the API would not answer for keeps yesterday's products, and
 // says so in the meta - the point being that the rest of the walk survives
-// it, which it did not before.
+// it.
 func TestCarryOver(t *testing.T) {
 	previous := cardmarket.Catalog{}
 	previous.Data.Expansions = map[int]cardmarket.CatalogExpansion{
