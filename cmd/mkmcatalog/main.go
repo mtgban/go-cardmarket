@@ -92,14 +92,15 @@ func run() error {
 		failed = walk(ctx, client, again, &catalog)
 	}
 
+	// A walk cut short by its deadline was refused nothing, so what it never
+	// reached is neither carried over nor left out of a catalog published as
+	// finished. The retry pass stops at once on an expired context.
+	if ctx.Err() != nil {
+		return fmt.Errorf("walk did not finish (%d of %d expansions read): %w",
+			len(catalog.Data.Expansions), len(expansions), ctx.Err())
+	}
+
 	if len(failed) > 0 {
-		// Carrying over is for a shelf the API refused. A walk cut short
-		// by its deadline was refused nothing, and carrying over what it
-		// never reached would publish old shelves as a finished walk.
-		if ctx.Err() != nil {
-			return fmt.Errorf("walk did not finish (%d of %d expansions read): %w",
-				len(catalog.Data.Expansions), len(expansions), ctx.Err())
-		}
 		if limit := carryLimit(len(expansions)); len(failed) > limit {
 			return fmt.Errorf("%d of %d expansions went unanswered, more than the %d a carry-over covers",
 				len(failed), len(expansions), limit)
