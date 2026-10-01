@@ -77,9 +77,9 @@ func (f Filter) set(v url.Values, name string) {
 	}
 }
 
-// sellerTypes numbers the seller types as the storefront's sellerType does.
-// Powerseller is 2 there; private and professional are assumed to follow
-// ArticleSeller.IsCommercial's 0 and 1.
+// sellerTypes numbers the seller types as the storefront's sellerType does,
+// which is how ArticleSeller.IsCommercial numbers them: private 0,
+// professional 1, powerseller 2.
 var sellerTypes = map[UserType]int{
 	UserTypePrivate:     0,
 	UserTypeCommercial:  1,
