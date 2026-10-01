@@ -92,25 +92,84 @@ func getDownload(ctx context.Context, link string) (*http.Response, error) {
 	return resp, nil
 }
 
-// DownloadPriceGuide downloads the published price guide for one game.
-func DownloadPriceGuide(ctx context.Context, game Game) ([]PriceGuide, error) {
-	resp, err := getDownload(ctx, fmt.Sprintf(priceGuideURL, game))
+// createdAtLayout is how the published files date themselves -
+// "2026-09-30T09:55:34+0200" - whose offset has no colon, so it is not
+// RFC 3339 and time.Time will not decode it on its own.
+const createdAtLayout = "2006-01-02T15:04:05-0700"
+
+// publishedFile is the envelope every published file comes in. A price guide
+// fills PriceGuides and a product list Products.
+type publishedFile struct {
+	Version     int           `json:"version"`
+	CreatedAt   string        `json:"createdAt"`
+	PriceGuides []PriceGuide  `json:"priceGuides"`
+	Products    []ProductList `json:"products"`
+}
+
+func downloadFile(ctx context.Context, link string) (*publishedFile, error) {
+	resp, err := getDownload(ctx, link)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	var response struct {
-		Version     int          `json:"version"`
-		CreatedAt   string       `json:"createdAt"`
-		PriceGuides []PriceGuide `json:"priceGuides"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&response)
+	var file publishedFile
+	err = json.NewDecoder(resp.Body).Decode(&file)
 	if err != nil {
 		return nil, err
 	}
+	return &file, nil
+}
 
-	return response.PriceGuides, nil
+// createdAt reads the time the file was built. An unreadable one is an
+// error, not a zero time, since a caller asking for it means to judge it.
+func (f *publishedFile) createdAt() (time.Time, error) {
+	createdAt, err := time.Parse(createdAtLayout, f.CreatedAt)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("cardmarket: published file createdAt: %w", err)
+	}
+	return createdAt, nil
+}
+
+// PriceGuideFile is a published price guide: when Cardmarket built it, and
+// its rows.
+type PriceGuideFile struct {
+	Version     int
+	CreatedAt   time.Time
+	PriceGuides []PriceGuide
+}
+
+// DownloadPriceGuide downloads the published price guide for one game.
+func DownloadPriceGuide(ctx context.Context, game Game) ([]PriceGuide, error) {
+	file, err := downloadFile(ctx, fmt.Sprintf(priceGuideURL, game))
+	if err != nil {
+		return nil, err
+	}
+	return file.PriceGuides, nil
+}
+
+// DownloadPriceGuideFile downloads one game's price guide with the time
+// Cardmarket built it, so a caller can refuse a file that has stopped
+// updating. How old is too old is the caller's to say: each file is rebuilt
+// on its own schedule.
+func DownloadPriceGuideFile(ctx context.Context, game Game) (*PriceGuideFile, error) {
+	return priceGuideFile(ctx, fmt.Sprintf(priceGuideURL, game))
+}
+
+func priceGuideFile(ctx context.Context, link string) (*PriceGuideFile, error) {
+	file, err := downloadFile(ctx, link)
+	if err != nil {
+		return nil, err
+	}
+	createdAt, err := file.createdAt()
+	if err != nil {
+		return nil, err
+	}
+	return &PriceGuideFile{
+		Version:     file.Version,
+		CreatedAt:   createdAt,
+		PriceGuides: file.PriceGuides,
+	}, nil
 }
 
 // ProductList is one entry of the catalog dump, which names products without
@@ -125,33 +184,57 @@ type ProductList struct {
 	DateAdded    string `json:"dateAdded"`
 }
 
+// ProductListFile is a published product list: when Cardmarket built it,
+// and its rows.
+type ProductListFile struct {
+	Version   int
+	CreatedAt time.Time
+	Products  []ProductList
+}
+
 // DownloadProductListSingles downloads the catalog of one game's singles.
 func DownloadProductListSingles(ctx context.Context, game Game) ([]ProductList, error) {
-	return downloadProductList(ctx, fmt.Sprintf(productListSinglesURL, game))
+	file, err := downloadFile(ctx, fmt.Sprintf(productListSinglesURL, game))
+	if err != nil {
+		return nil, err
+	}
+	return file.Products, nil
 }
 
 // DownloadProductListSealed downloads the catalog of one game's sealed
 // product.
 func DownloadProductListSealed(ctx context.Context, game Game) ([]ProductList, error) {
-	return downloadProductList(ctx, fmt.Sprintf(productListSealedURL, game))
+	file, err := downloadFile(ctx, fmt.Sprintf(productListSealedURL, game))
+	if err != nil {
+		return nil, err
+	}
+	return file.Products, nil
 }
 
-func downloadProductList(ctx context.Context, link string) ([]ProductList, error) {
-	resp, err := getDownload(ctx, link)
+// DownloadProductListSinglesFile is DownloadProductListSingles with the time
+// Cardmarket built the file; see DownloadPriceGuideFile.
+func DownloadProductListSinglesFile(ctx context.Context, game Game) (*ProductListFile, error) {
+	return productListFile(ctx, fmt.Sprintf(productListSinglesURL, game))
+}
+
+// DownloadProductListSealedFile is DownloadProductListSealed with the time
+// Cardmarket built the file; see DownloadPriceGuideFile.
+func DownloadProductListSealedFile(ctx context.Context, game Game) (*ProductListFile, error) {
+	return productListFile(ctx, fmt.Sprintf(productListSealedURL, game))
+}
+
+func productListFile(ctx context.Context, link string) (*ProductListFile, error) {
+	file, err := downloadFile(ctx, link)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
-	var response struct {
-		Version   int           `json:"version"`
-		CreatedAt string        `json:"createdAt"`
-		Products  []ProductList `json:"products"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&response)
+	createdAt, err := file.createdAt()
 	if err != nil {
 		return nil, err
 	}
-
-	return response.Products, nil
+	return &ProductListFile{
+		Version:   file.Version,
+		CreatedAt: createdAt,
+		Products:  file.Products,
+	}, nil
 }

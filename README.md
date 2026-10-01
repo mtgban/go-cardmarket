@@ -210,6 +210,13 @@ uses.
 - `DownloadProductListSingles(ctx, game) ([]ProductList, error)`
 - `DownloadProductListSealed(ctx, game) ([]ProductList, error)`
 
+Each has a `…File` form — `DownloadPriceGuideFile(ctx, game) (*PriceGuideFile, error)`,
+and likewise for the two product lists — that also returns the file's `Version`
+and the `CreatedAt` Cardmarket stamped it with, so a caller can refuse a file
+that has stopped updating. How old is too old is yours to say: the price guide
+and the product lists are rebuilt on different schedules. An unreadable
+`CreatedAt` is an error in the `…File` forms; the plain ones never read it.
+
 `PriceGuide.SecondPrinting(game)` reads the printing sold beside the default
 one under whichever heading the game's guide publishes it — most games publish
 a foil, Pokémon publishes a reverse holo.
