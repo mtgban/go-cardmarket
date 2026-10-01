@@ -454,24 +454,118 @@ type Article struct {
 	Links []Link `json:"links,omitempty"`
 }
 
+// ArticleQuery is what an Articles request narrows the listings by. The zero
+// value asks for every listing, and each field set adds the parameter the
+// documentation names. Articles refuses a value outside this package's own
+// constants rather than send one the API would ignore.
+//
+// The API's filters fail open: one that does not apply to a game is ignored
+// and the unfiltered listing answered, not an error. Check each Article's own
+// fields rather than trusting the request.
+type ArticleQuery struct {
+	// UserType narrows to one kind of seller; UserTypeCommercial includes
+	// powersellers.
+	UserType UserType
+	// MinUserScore and MinCondition each mean that or better.
+	MinUserScore UserScore
+	MinCondition Condition
+	// Language is the listing's language.
+	Language Language
+	// SellerCountry is the seller's country of origin. The documentation
+	// takes one.
+	SellerCountry Country
+
+	// Foil, FirstEd and ReverseHolo narrow to a printing, and Signed and
+	// Altered by what was done to the card, as the Article's flags of the
+	// same names. FirstEd and ReverseHolo are not in the documentation.
+	Foil        Filter
+	FirstEd     Filter
+	ReverseHolo Filter
+	Signed      Filter
+	Altered     Filter
+
+	// MinAvailable is the fewest copies a seller holds across all their
+	// listings matching the rest of the query, not in any one listing.
+	MinAvailable int
+}
+
+// values renders the query as the parameters Articles sends.
+func (q ArticleQuery) values() (url.Values, error) {
+	v := url.Values{}
+
+	if q.UserType != "" {
+		if _, ok := sellerTypes[q.UserType]; !ok {
+			return nil, fmt.Errorf("cardmarket: no user type %q", q.UserType)
+		}
+		v.Set("userType", string(q.UserType))
+	}
+	if q.MinUserScore != 0 {
+		if UserScoreName(q.MinUserScore) == "" {
+			return nil, fmt.Errorf("cardmarket: no user score %d", q.MinUserScore)
+		}
+		v.Set("minUserScore", fmt.Sprint(int(q.MinUserScore)))
+	}
+	if q.MinCondition != "" {
+		if ConditionName(q.MinCondition) == "" {
+			return nil, fmt.Errorf("cardmarket: no condition %q", q.MinCondition)
+		}
+		v.Set("minCondition", string(q.MinCondition))
+	}
+	if q.Language != 0 {
+		if LanguageName(q.Language) == "" {
+			return nil, fmt.Errorf("cardmarket: no language %d", q.Language)
+		}
+		v.Set("idLanguage", fmt.Sprint(int(q.Language)))
+	}
+	if q.SellerCountry != 0 {
+		if CountryName(q.SellerCountry) == "" {
+			return nil, fmt.Errorf("cardmarket: no country %d", q.SellerCountry)
+		}
+		v.Set("sellerCountry", fmt.Sprint(int(q.SellerCountry)))
+	}
+
+	for _, flag := range []struct {
+		name   string
+		filter Filter
+	}{
+		{"isFoil", q.Foil},
+		{"isFirstEd", q.FirstEd},
+		{"isReverseHolo", q.ReverseHolo},
+		{"isSigned", q.Signed},
+		{"isAltered", q.Altered},
+	} {
+		if flag.filter < Any || flag.filter > None {
+			return nil, fmt.Errorf("cardmarket: no filter %d for %s", flag.filter, flag.name)
+		}
+		flag.filter.setBool(v, flag.name)
+	}
+
+	if q.MinAvailable < 0 {
+		return nil, fmt.Errorf("cardmarket: minAvailable %d is negative", q.MinAvailable)
+	}
+	if q.MinAvailable > 0 {
+		v.Set("minAvailable", fmt.Sprint(q.MinAvailable))
+	}
+
+	return v, nil
+}
+
 // Articles returns the listings on a product, one page at a time, together
 // with the listing's true total count (see ParseContentRange) so a caller
 // can stop paginating once it's covered the total, or confirm a filter
-// (isFoil, idLanguage, ...) actually narrowed the result rather than being
-// silently ignored - Cardmarket's filters fail open on an unrecognized name
-// or value, answering the unfiltered list rather than an error. total is 0
-// when the header is missing or unparseable; capped reports Cardmarket's own
+// actually narrowed the result (see ArticleQuery). total is 0 when the
+// header is missing or unparseable; capped reports Cardmarket's own
 // 1000-result ceiling, past which the real count is unknowable. Pages start
 // at zero, and the API requires both bounds: asking for a page size without
 // a start is refused.
-func (mkm *Client) Articles(ctx context.Context, id int, options map[string]string, page, maxResults int) (articles []Article, total int, capped bool, err error) {
-	u, err := url.Parse(articlesBaseURL + fmt.Sprint(id))
+func (mkm *Client) Articles(ctx context.Context, id int, query ArticleQuery, page, maxResults int) (articles []Article, total int, capped bool, err error) {
+	params, err := query.values()
 	if err != nil {
 		return nil, 0, false, err
 	}
-	params := url.Values{}
-	for key, value := range options {
-		params.Set(key, value)
+	u, err := url.Parse(articlesBaseURL + fmt.Sprint(id))
+	if err != nil {
+		return nil, 0, false, err
 	}
 	params.Set("start", fmt.Sprint(page*maxResults))
 	params.Set("maxResults", fmt.Sprint(maxResults))
@@ -520,9 +614,8 @@ type authTransport struct {
 // accept repeated at all.
 //
 // Currently unreachable through this package's own exported calls
-// (Client.Articles builds its query from a plain map[string]string, which
-// cannot hold a repeated key), but a latent trap for any future caller who
-// builds a request with one directly.
+// (Client.Articles sends each filter once), but a latent trap for any future
+// caller who builds a request with a repeated key directly.
 func addQueryParams(q url.Values, query url.Values) {
 	for key, values := range query {
 		sorted := slices.Clone(values)
