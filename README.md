@@ -82,11 +82,27 @@ watch against the daily allowance.
 - **Products**
   - `Product(ctx, productID) (*Product, error)`
 - **Articles** (listings)
-  - `Articles(ctx, productID, options, page, maxResults) (articles []Article, total int, capped bool, err error)`
+  - `Articles(ctx, productID, query, page, maxResults) (articles []Article, total int, capped bool, err error)`
 
-`options` is yours to choose. This package spells the filters and picks none
-of them: what condition is worth pricing, and which sellers are worth reading,
-are judgements about your own use, not facts about the marketplace.
+`query` is an `ArticleQuery`, and what goes in it is yours to choose. This
+package spells the filters and picks none of them: what condition is worth
+pricing, and which sellers are worth reading, are judgements about your own
+use, not facts about the marketplace.
+
+```go
+articles, total, _, err := c.Articles(ctx, productID, cardmarket.ArticleQuery{
+    MinCondition: cardmarket.ConditionGood,
+    MinUserScore: cardmarket.UserScoreGood,
+    Language:     cardmarket.LanguageEnglish,
+    Signed:       cardmarket.None,
+    Altered:      cardmarket.None,
+}, 0, cardmarket.MaxEntities)
+```
+
+Each field is typed, so a misspelt filter or a language passed where a score
+belongs does not compile, and `Articles` refuses a value outside the
+package's constants (`Language(99)`) rather than send it. The flags take the
+same `Filter` as a storefront link: `Only` sends `true`, `None` sends `false`.
 
 > Cardmarket's filters **fail open**. A parameter that does not apply to a
 > game, or a value it does not recognise, is ignored and the unfiltered

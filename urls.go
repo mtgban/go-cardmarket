@@ -77,6 +77,17 @@ func (f Filter) set(v url.Values, name string) {
 	}
 }
 
+// setBool writes the filter as the API spells a flag: true, false, or not at
+// all.
+func (f Filter) setBool(v url.Values, name string) {
+	switch f {
+	case Only:
+		v.Set(name, "true")
+	case None:
+		v.Set(name, "false")
+	}
+}
+
 // sellerTypes numbers the seller types as the storefront's sellerType does,
 // which is how ArticleSeller.IsCommercial numbers them: private 0,
 // professional 1, powerseller 2.
