@@ -37,12 +37,15 @@ func run() int {
 	ctx, cancel := context.WithTimeout(context.Background(), downloadTimeout)
 	defer cancel()
 	switch *mode {
-	default:
+	case "prices":
 		output, err = cardmarket.DownloadPriceGuide(ctx, game)
 	case "singles":
 		output, err = cardmarket.DownloadProductListSingles(ctx, game)
 	case "sealed":
 		output, err = cardmarket.DownloadProductListSealed(ctx, game)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown mode %q\n", *mode)
+		return 1
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
