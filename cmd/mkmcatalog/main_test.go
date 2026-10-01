@@ -259,3 +259,45 @@ func TestCarryOverNamesAPersistentlyUnreadShelf(t *testing.T) {
 		t.Errorf("meta.Unwalked = %v, want [1645]", catalog.Meta.Unwalked)
 	}
 }
+
+// A run that carried shelves over is green, so each one is raised as a
+// warning on the run, escaped the way the runner reads it.
+func TestCarryOverWarnsOnTheRun(t *testing.T) {
+	previous := cardmarket.Catalog{}
+	previous.Data.Expansions = map[int]cardmarket.CatalogExpansion{1645: {Name: "Pokémon Products"}}
+	previous.Data.Products = map[int]cardmarket.CatalogProduct{
+		10: {ExpansionID: 1645, Name: "Pikachu"},
+	}
+	path := writePrevious(t, previous)
+
+	var out strings.Builder
+	annotations = &out
+	t.Cleanup(func() { annotations = nil })
+
+	catalog := freshCatalog()
+	failed := []unanswered{
+		{expansion: cardmarket.Expansion{IDExpansion: 1645, Name: "Pokémon Products"},
+			err: errors.New("503")},
+		{expansion: cardmarket.Expansion{IDExpansion: 7000, Name: "100% New"},
+			err: errors.New("503")},
+	}
+	if err := carryOver(context.Background(), path, failed, &catalog); err != nil {
+		t.Fatalf("carryOver() = %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("got %d warnings, want 2:\n%s", len(lines), out.String())
+	}
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "::warning::") {
+			t.Errorf("not a warning command: %q", line)
+		}
+	}
+	if !strings.Contains(lines[0], "Carried 1 products over for expansion 1645") {
+		t.Errorf("first warning = %q", lines[0])
+	}
+	if !strings.Contains(lines[1], `"100%25 New"`) {
+		t.Errorf("second warning does not escape %%: %q", lines[1])
+	}
+}
