@@ -62,8 +62,8 @@ const (
 // request itself.
 type attemptsKey struct{}
 
-// attempts is that tally. One request is in flight at a time by design (see
-// NewClient), and each gets its own, so it needs no locking.
+// attempts is that tally. Each request gets its own, which only that
+// request's attempts touch, one after another, so it needs no locking.
 type attempts struct{ serverErrors int }
 
 // withAttempts gives a request its own tally. A request made without one is
@@ -129,16 +129,17 @@ type Client struct {
 //
 // The API is very sensitive to concurrent requests and answers a burst with
 // 429s - measured as a concurrency limiter rather than a rate limiter: one
-// request in flight at a time clears with no 429s at all, at roughly the
-// same throughput a burst of many concurrent requests achieves after most of
-// them are rejected and retried. Every 429 observed carries a `Retry-After`
-// of one second, so the backoff honours it (falling back to jittered
-// exponential backoff, up to 2-10 seconds times the attempt number, for a
-// response with none) rather than waiting a fixed multi-second interval
-// regardless of what the server actually asked for. A 429 is retried up to
-// rateLimitRetries times and a 5xx only serverErrorRetries, for the reasons
-// given there; give long walks a context deadline, since neither is a bound
-// anyone should rely on.
+// request in flight at a time clears with no 429s at all. More in flight is
+// faster and pays for it in retries: on 10-listing pages of Articles, 8 in
+// flight ran about four times as fast as one, with a fifth to a half of
+// their requests refused and retried, each counted by RequestNo. Every 429
+// observed carries a `Retry-After` of one second, so the backoff honours it
+// (falling back to jittered exponential backoff, up to 2-10 seconds times
+// the attempt number, for a response with none) rather than waiting a fixed
+// multi-second interval regardless of what the server actually asked for. A
+// 429 is retried up to rateLimitRetries times and a 5xx only
+// serverErrorRetries, for the reasons given there; give long walks a context
+// deadline, since neither is a bound anyone should rely on.
 func NewClient(appToken, appSecret string) *Client {
 	mkm := Client{}
 	client := retryablehttp.NewClient()
