@@ -12,7 +12,6 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -265,7 +264,9 @@ func (mkm *Client) get(ctx context.Context, link string, out any) (string, error
 
 	err = json.Unmarshal(data, out)
 	if err != nil {
-		return contentRange, errors.New(string(data))
+		// The body is cut short: an HTML error page would otherwise fill the log.
+		return contentRange, fmt.Errorf("cardmarket: %d %s: %w: %.200q",
+			resp.StatusCode, http.StatusText(resp.StatusCode), err, data)
 	}
 	return contentRange, nil
 }
