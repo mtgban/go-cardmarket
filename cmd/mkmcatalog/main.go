@@ -28,6 +28,11 @@ import (
 // all rate-limit at once would run until the scheduler killed it.
 const walkTimeout = 3 * time.Hour
 
+// annotations receives a GitHub Actions warning for every line warnf logs,
+// so a run that carried shelves over says so on its page rather than only
+// in a log nobody opens for a green job. Nil off a runner.
+var annotations io.Writer
+
 func main() {
 	err := run()
 	if err != nil {
@@ -40,6 +45,10 @@ func run() error {
 	output := flag.String("output", "", "file or b2:// object to write; an .xz suffix compresses it")
 	previous := flag.String("previous", "", "catalog to carry an unanswerable expansion's products over from; a file or b2:// object, read only if the walk leaves one")
 	flag.Parse()
+
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		annotations = os.Stdout
+	}
 
 	game := cardmarket.GameFromName(*gameName)
 	if game == 0 {
@@ -269,18 +278,31 @@ func carryOver(ctx context.Context, path string, failed []unanswered,
 		catalog.Meta.Unwalked = append(catalog.Meta.Unwalked, id)
 
 		if carried[id] == 0 {
-			log.Printf("Expansion %d %q went unanswered (%v) and %s has nothing for it, "+
+			warnf("Expansion %d %q went unanswered (%v) and %s has nothing for it, "+
 				"so it is in this catalog with no products - a shelf added since the last good walk%s",
 				id, one.expansion.Name, one.err, path, stuck)
 			continue
 		}
-		log.Printf("Carried %d products over for expansion %d %q, unanswered (%v), from %s%s",
+		warnf("Carried %d products over for expansion %d %q, unanswered (%v), from %s%s",
 			carried[id], id, one.expansion.Name, one.err, path, stuck)
 	}
 	slices.Sort(catalog.Meta.Unwalked)
 
 	return nil
 }
+
+// warnf logs a line and raises it as a warning on annotations, if any.
+func warnf(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	log.Print(msg)
+	if annotations != nil {
+		fmt.Fprintf(annotations, "::warning::%s\n", commandEscaper.Replace(msg))
+	}
+}
+
+// commandEscaper escapes a workflow command's message, as the runner
+// unescapes it.
+var commandEscaper = strings.NewReplacer("%", "%25", "\r", "%0D", "\n", "%0A")
 
 // openReader opens the previous catalog the way openWriter opens the new
 // one, and decompresses it by the same suffix.
