@@ -185,9 +185,8 @@ cardmarket.URLOption{
 ```
 
 The storefront numbers the seller types where the API names them, so the
-`UserType` words are translated on the way out: powerseller is `2`, and
-private and professional are taken to be `0` and `1`, as an `Article`'s
-`IsCommercial` numbers them.
+`UserType` words are translated on the way out: private is `0`, professional
+`1` and powerseller `2`, as an `Article`'s `IsCommercial` numbers them.
 
 `Language` asks the page to prefer one language, and sends nothing at zero.
 `Affiliate` tags the link with `utm_source`, `utm_medium` and `utm_campaign`,
