@@ -301,3 +301,26 @@ func TestCarryOverWarnsOnTheRun(t *testing.T) {
 		t.Errorf("second warning does not escape %%: %q", lines[1])
 	}
 }
+
+// A skipped shelf is named in the catalog and not walked; a shelf of
+// another game is not skipped for a tag only Magic's list holds.
+func TestSkipShelves(t *testing.T) {
+	expansions := []cardmarket.Expansion{
+		{IDExpansion: 5571, Name: "Alfie's Adventure Tokens", SetCode: "TAAT"},
+		{IDExpansion: 1, Name: "Alpha", SetCode: "LEA"},
+	}
+	catalog := cardmarket.Catalog{}
+	catalog.Data.Expansions = map[int]cardmarket.CatalogExpansion{}
+
+	kept := skipShelves(cardmarket.GameMagic, expansions, &catalog)
+	if len(kept) != 1 || kept[0].IDExpansion != 1 {
+		t.Errorf("kept %v, want Alpha alone", kept)
+	}
+	if got := catalog.Data.Expansions[5571]; got.Name != "Alfie's Adventure Tokens" || got.Code != "TAAT" {
+		t.Errorf("expansion 5571 = %+v, want it named", got)
+	}
+
+	if kept := skipShelves(cardmarket.GamePokemon, expansions, &catalog); len(kept) != 2 {
+		t.Errorf("Pokemon kept %v, want both", kept)
+	}
+}

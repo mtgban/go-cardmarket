@@ -295,6 +295,10 @@ A `b2://` output reads `B2_APPLICATION_KEY_ID` and `B2_APPLICATION_KEY` — the
 same names the `b2` command line uses, so one pair of credentials works for
 both.
 
+A few of Magic's shelves are named in the catalog but not walked: the vendor
+tokens and alters, accessories, oversized promos, player cards and the
+marketplace's own series, matched by name in `skippedShelves`.
+
 An expansion the API will not answer for gets one more try at the end of the
 walk before it is carried over. The run fails, rather than publish a catalog
 that silently unprices whatever it dropped, when:
