@@ -1,7 +1,6 @@
 // Command mkmcatalog walks one game's Cardmarket catalog - every expansion
 // and the products it shelves - and writes it in the shape a price run reads,
-// so the twice-daily runs stop crawling the API. MTGJSON publishes the Magic
-// file; this tool builds every other game's.
+// so the twice-daily runs stop crawling the API.
 package main
 
 import (
@@ -41,7 +40,7 @@ func main() {
 }
 
 func run() error {
-	gameName := flag.String("game", "", "game to walk, by name (lorcana, riftbound, gundam, pokemon, ... any game Cardmarket carries)")
+	gameName := flag.String("game", "", "game to walk, by name (magic, lorcana, riftbound, gundam, pokemon, ... any game Cardmarket carries)")
 	output := flag.String("output", "", "file or b2:// object to write; an .xz suffix compresses it")
 	previous := flag.String("previous", "", "catalog to carry an unanswerable expansion's products over from; a file or b2:// object, read only if the walk leaves one")
 	flag.Parse()
