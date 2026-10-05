@@ -302,25 +302,23 @@ func TestCarryOverWarnsOnTheRun(t *testing.T) {
 	}
 }
 
-// A skipped shelf is named in the catalog and not walked; a shelf of
-// another game is not skipped for a tag only Magic's list holds.
-func TestSkipShelves(t *testing.T) {
-	expansions := []cardmarket.Expansion{
-		{IDExpansion: 5571, Name: "Alfie's Adventure Tokens", SetCode: "TAAT"},
-		{IDExpansion: 1, Name: "Alpha", SetCode: "LEA"},
-	}
-	catalog := cardmarket.Catalog{}
-	catalog.Data.Expansions = map[int]cardmarket.CatalogExpansion{}
-
-	kept := skipShelves(cardmarket.GameMagic, expansions, &catalog)
-	if len(kept) != 1 || kept[0].IDExpansion != 1 {
-		t.Errorf("kept %v, want Alpha alone", kept)
-	}
-	if got := catalog.Data.Expansions[5571]; got.Name != "Alfie's Adventure Tokens" || got.Code != "TAAT" {
-		t.Errorf("expansion 5571 = %+v, want it named", got)
-	}
-
-	if kept := skipShelves(cardmarket.GamePokemon, expansions, &catalog); len(kept) != 2 {
-		t.Errorf("Pokemon kept %v, want both", kept)
+// Vendor lines are left out by name or by their TOK code, a set's own token
+// shelf is kept, and no other game loses a shelf to Magic's tags.
+func TestSkipped(t *testing.T) {
+	for _, tt := range []struct {
+		game      cardmarket.Game
+		expansion cardmarket.Expansion
+		want      bool
+	}{
+		{cardmarket.GameMagic, cardmarket.Expansion{Name: "Alfie's Adventure Tokens", SetCode: "TOK26"}, true},
+		{cardmarket.GameMagic, cardmarket.Expansion{Name: "Dobi TOKENS", SetCode: "TOK39"}, true},
+		{cardmarket.GameMagic, cardmarket.Expansion{Name: "Rk post Products", SetCode: "RKP"}, true},
+		{cardmarket.GameMagic, cardmarket.Expansion{Name: "Modern Horizons 3: Tokens", SetCode: "TMH3"}, false},
+		{cardmarket.GameMagic, cardmarket.Expansion{Name: "Alpha", SetCode: "LEA"}, false},
+		{cardmarket.GamePokemon, cardmarket.Expansion{Name: "Pokemon Tokens", SetCode: "TOK1"}, false},
+	} {
+		if got := skipped(tt.game, tt.expansion); got != tt.want {
+			t.Errorf("skipped(%v, %q) = %v, want %v", tt.game, tt.expansion.Name, got, tt.want)
+		}
 	}
 }
