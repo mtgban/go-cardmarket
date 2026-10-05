@@ -9,34 +9,27 @@ import (
 )
 
 // Catalog is a published Cardmarket catalog: every singles product mapped to
-// the printings it sells, which is what a price run reads instead of walking
-// the API.
+// what the marketplace says of it, which is what a price run reads instead of
+// walking the API.
 //
-// Two programs write this file and they fill different halves of it. MTGJSON
-// publishes Magic's, with the uuids of the printings each product stands for
-// and no rarity, version or expansion code. cmd/mkmcatalog walks the API for
-// every other game, which answers the rarity and the version and the code but
-// knows nothing of any datastore's uuids. A field absent from one producer is
-// absent from every product it writes, not missing from a particular row.
+// cmd/mkmcatalog writes it for every game, Magic included, from the API's own
+// answers. It names products and expansions and nothing else: which printing
+// of a datastore a product stands for is the reader's to work out.
 type Catalog struct {
 	Meta CatalogMeta `json:"meta"`
 	Data CatalogData `json:"data"`
 }
 
-// CatalogMeta says when the file was built and by which version of whatever
-// built it. Both are carried through and neither is enforced: the two
-// producers version themselves differently and a reader that refused an
-// unfamiliar string would refuse a file it can read perfectly well.
+// CatalogMeta says when the file was built and how much of it was.
 type CatalogMeta struct {
-	Date    string `json:"date"`
-	Version string `json:"version"`
+	Date string `json:"date"`
 	// Unwalked names the expansions whose products did not come from this
 	// walk, because the API would not answer for them: they are the
 	// previous catalog's, or absent altogether where it had none for the
 	// expansion - a shelf added since the last good walk. A reader that
 	// cares how fresh a shelf is has to be told, since neither case is
 	// otherwise distinguishable from one walked today. Empty in the
-	// ordinary case, and in every file MTGJSON writes.
+	// ordinary case.
 	Unwalked []int `json:"unwalked,omitempty"`
 }
 
@@ -49,7 +42,7 @@ type CatalogData struct {
 }
 
 // CatalogProduct is one product of the catalog: what the marketplace calls
-// it, where it files it, and the printings it stands for.
+// it and where it files it.
 type CatalogProduct struct {
 	ExpansionID int    `json:"expansionId"`
 	Name        string `json:"name"`
@@ -62,14 +55,11 @@ type CatalogProduct struct {
 	// zero where the product carries none. See ProductVersion for where it
 	// is read from, which is not the same field in every game.
 	Version int `json:"version,omitempty"`
-	// UUIDs are the printings the product sells, as MTGJSON links them.
-	// Only Magic's file carries any.
-	UUIDs []string `json:"uuids,omitempty"`
 }
 
 // CatalogExpansion names one expansion of the catalog. Code is the
 // marketplace's own abbreviation, which is where the foreign catalogs say
-// what they are; MTGJSON's file does not carry it.
+// what they are.
 type CatalogExpansion struct {
 	Name string `json:"name"`
 	Code string `json:"code,omitempty"`

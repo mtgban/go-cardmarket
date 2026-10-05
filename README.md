@@ -241,29 +241,27 @@ a foil, Pokémon publishes a reverse holo.
 
 ## The catalog file
 
-`Catalog` is the id map a price run reads instead of walking the API. Two
-programs write it and they fill different halves:
+`Catalog` is the id map a price run reads instead of walking the API.
+`mkmcatalog` writes it for every game, Magic included, from the API's own
+answers:
 
-| field | MTGJSON (Magic) | mkmcatalog (everything else) |
-|---|---|---|
-| `expansionId`, `name` | yes | yes |
-| `number` | mostly | yes |
-| `uuids` | yes | never |
-| `rarity`, `version` | never | yes |
-| expansion `code` | never | yes |
+| field | |
+|---|---|
+| `expansionId`, `name` | every product |
+| `number`, `rarity` | where the marketplace gives one |
+| `version` | where the product carries one; see `ProductVersion` |
+| expansion `code` | the marketplace's own abbreviation |
 
-A field absent from one producer is absent from every product it writes, not
-missing from a particular row.
+It names products and nothing else: which printing of a datastore a product
+stands for is the reader's to work out.
 
 ```go
 catalog, err := cardmarket.LoadCatalog(reader)
 product := catalog.Data.Products[571798]
 ```
 
-`meta.date` and `meta.version` are carried through and neither is enforced: the
-two producers version themselves differently, and a reader refusing an
-unfamiliar string would refuse a file it can read perfectly well. A file naming
-no products *is* refused — that is the shape a truncated download takes.
+`meta.date` is carried through and not enforced. A file naming no products
+*is* refused — that is the shape a truncated download takes.
 
 ---
 
@@ -281,7 +279,7 @@ MKM_APP_TOKEN=... MKM_APP_SECRET=... \
 ```
 
 Flags:
-- `-game` — any game by name (`lorcana`, `riftbound`, `gundam`, `pokemon`, …);
+- `-game` — any game by name (`magic`, `lorcana`, `riftbound`, `gundam`, `pokemon`, …);
   see `GameFromName`
 - `-previous` — a catalog to carry an unanswerable expansion's products over
   from, read only when the walk leaves one. The API intermittently answers

@@ -1,13 +1,18 @@
 name: Catalog dump
-run-name: Catalog dump (${{ inputs.game || 'all' }})
+run-name: Catalog dump (${{ inputs.game || (github.event.schedule == '30 6 * * *' && 'magic') || 'all' }})
 
-# The games MTGJSON does not speak get their Cardmarket catalog from this
-# crawl: once a day, like MTGJSON's own file, each is walked through the API
-# and published beside the game's datastore, and the price runs read the file
-# instead of crawling. Magic's comes from MTGJSON and is not built here.
+# Each game's Cardmarket catalog is walked through the API once a day and
+# published beside the game's datastore, and the price runs read the file
+# instead of crawling.
+#
+# Magic walks on a cron of its own, placed in the morning lull of go-mtgban's
+# Cardmarket Market and Sealed runs, which page through the API's articles
+# from about 12:30 UTC until about 09:30 the next day. GitHub starts these
+# schedules two to five hours late, so 06:30 lands the walk in that lull.
 on:
   schedule:
     - cron: "45 16 * * *"
+    - cron: "30 6 * * *"
   workflow_dispatch:
     inputs:
       game:
@@ -16,6 +21,7 @@ on:
         default: all
         options:
           - all
+          - magic
           - lorcana
           - riftbound
           - gundam
@@ -24,13 +30,21 @@ on:
           - yugioh
           - fleshandblood
 
+# One walk at a time, whichever schedule or dispatch started it, to keep the
+# API request rate down as the matrix does
+concurrency:
+  group: catalog-dump
+  cancel-in-progress: false
+  queue: max
+
 permissions:
   contents: read
 
 jobs:
-  # Scheduled runs dump everything, manual runs honor the selection. The
-  # matrix context is not available in a job level if, so the selection is
-  # applied by building the matrix itself.
+  # The Magic schedule dumps Magic, the other one every other game, and
+  # manual runs honor the selection. The matrix context is not available in
+  # a job level if, so the selection is applied by building the matrix
+  # itself.
   select:
     runs-on: ubuntu-latest
     outputs:
@@ -39,9 +53,14 @@ jobs:
       - id: select
         env:
           SELECTED: ${{ inputs.game || 'all' }}
+          SCHEDULE: ${{ github.event.schedule }}
         run: |
-          games='["lorcana","riftbound","gundam","onepiece","pokemon","yugioh","fleshandblood"]'
-          if [ "$SELECTED" = all ]; then
+          games='["magic","lorcana","riftbound","gundam","onepiece","pokemon","yugioh","fleshandblood"]'
+          if [ "$SCHEDULE" = "30 6 * * *" ]; then
+            selection='["magic"]'
+          elif [ -n "$SCHEDULE" ]; then
+            selection=$(jq -c '[.[] | select(. != "magic")]' <<< "$games")
+          elif [ "$SELECTED" = all ]; then
             selection=$(jq -c . <<< "$games")
           else
             selection=$(jq -c --arg name "$SELECTED" \

@@ -5,39 +5,23 @@ import (
 	"testing"
 )
 
-// catalogFixture is the shape MTGJSON publishes Magic's file in, which is
-// the shape mkmcatalog writes the other games' in: string keys on both
-// tables, and the fields one producer fills that the other does not.
+// catalogFixture is the shape mkmcatalog writes: string keys on both
+// tables, an expansion code, and a rarity and version where the product
+// carries them.
 const catalogFixture = `{
-	"meta": {"date": "2026-09-03", "version": "5.3.0"},
+	"meta": {"date": "2026-09-08"},
 	"data": {
 		"expansions": {
-			"1": {"name": "Alpha", "setCodes": ["LEA"]}
+			"1": {"name": "Alpha", "code": "LEA"},
+			"4170": {"name": "Unnumbered Promos", "code": "UNP"}
 		},
 		"products": {
 			"14866": {
 				"expansionId": 1,
 				"name": "Laughing Hyena",
 				"number": "103",
-				"uuids": ["aaa", "bbb"]
+				"rarity": "Common"
 			},
-			"999999": {
-				"expansionId": 1,
-				"name": "No Printing Of Ours"
-			}
-		}
-	}
-}`
-
-// mintedFixture is what mkmcatalog writes: an expansion code where MTGJSON
-// writes set codes, and a rarity and version where it writes uuids.
-const mintedFixture = `{
-	"meta": {"date": "2026-09-08", "version": ""},
-	"data": {
-		"expansions": {
-			"4170": {"name": "Unnumbered Promos", "code": "UNP"}
-		},
-		"products": {
 			"571798": {
 				"expansionId": 4170,
 				"name": "Touch Change!",
@@ -53,44 +37,45 @@ func TestLoadCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadCatalog: %v", err)
 	}
-	if len(catalog.Data.Products) != 2 || len(catalog.Data.Expansions) != 1 {
-		t.Fatalf("got %d products and %d expansions, want 2 and 1",
+	if len(catalog.Data.Products) != 2 || len(catalog.Data.Expansions) != 2 {
+		t.Fatalf("got %d products and %d expansions, want 2 and 2",
 			len(catalog.Data.Products), len(catalog.Data.Expansions))
 	}
 	product, found := catalog.Data.Products[14866]
 	if !found {
 		t.Fatal("the string key 14866 did not become the number")
 	}
-	if product.Number != "103" || len(product.UUIDs) != 2 {
+	if product.Number != "103" || product.Rarity != "Common" || product.Version != 0 {
 		t.Errorf("product 14866 = %+v", product)
 	}
-	if catalog.Data.Expansions[1].Name != "Alpha" {
-		t.Errorf("expansion 1 = %+v", catalog.Data.Expansions[1])
+	if product := catalog.Data.Products[571798]; product.Rarity != "Promo" || product.Version != 2 {
+		t.Errorf("product 571798 = %+v", product)
 	}
-	// The meta is carried through and judged by nobody.
-	if catalog.Meta.Date != "2026-09-03" || catalog.Meta.Version != "5.3.0" {
+	if expansion := catalog.Data.Expansions[4170]; expansion.Name != "Unnumbered Promos" || expansion.Code != "UNP" {
+		t.Errorf("expansion 4170 = %+v", expansion)
+	}
+	if catalog.Meta.Date != "2026-09-08" {
 		t.Errorf("meta = %+v", catalog.Meta)
-	}
-	// The fixture carries MTGJSON's setCodes, which the struct does not
-	// name, and an unknown key must not fail the load.
-	if _, err := LoadCatalog(strings.NewReader(catalogFixture)); err != nil {
-		t.Errorf("an unknown key should be ignored, not refused: %v", err)
 	}
 }
 
-// TestLoadCatalogMinted reads the half mkmcatalog fills, which carries no
-// uuids at all - the field MTGJSON's Magic file is mostly made of.
-func TestLoadCatalogMinted(t *testing.T) {
-	catalog, err := LoadCatalog(strings.NewReader(mintedFixture))
+// TestLoadCatalogUnknownKeys reads a file carrying keys the struct does not
+// name, as MTGJSON's CardmarketIdentifiers does: they are ignored, not
+// refused.
+func TestLoadCatalogUnknownKeys(t *testing.T) {
+	const fixture = `{
+		"meta": {"date": "2026-09-03", "version": "5.3.0"},
+		"data": {
+			"expansions": {"1": {"name": "Alpha", "setCodes": ["LEA"]}},
+			"products": {"14866": {"expansionId": 1, "name": "Laughing Hyena", "uuids": ["aaa"]}}
+		}
+	}`
+	catalog, err := LoadCatalog(strings.NewReader(fixture))
 	if err != nil {
-		t.Fatalf("LoadCatalog: %v", err)
+		t.Fatalf("an unknown key should be ignored, not refused: %v", err)
 	}
-	product := catalog.Data.Products[571798]
-	if product.Rarity != "Promo" || product.Version != 2 || len(product.UUIDs) != 0 {
-		t.Errorf("product 571798 = %+v", product)
-	}
-	if code := catalog.Data.Expansions[4170].Code; code != "UNP" {
-		t.Errorf("expansion 4170 code = %q, want UNP", code)
+	if catalog.Data.Products[14866].Name != "Laughing Hyena" {
+		t.Errorf("product 14866 = %+v", catalog.Data.Products[14866])
 	}
 }
 
