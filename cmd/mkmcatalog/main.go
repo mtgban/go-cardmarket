@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -77,7 +78,13 @@ func run() error {
 	catalog.Data.Expansions = make(map[int]cardmarket.CatalogExpansion, len(expansions))
 	catalog.Data.Products = map[int]cardmarket.CatalogProduct{}
 
-	expansions = skipShelves(game, expansions, &catalog)
+	walked := slices.DeleteFunc(slices.Clone(expansions), func(expansion cardmarket.Expansion) bool {
+		return skipped(game, expansion)
+	})
+	if len(walked) < len(expansions) {
+		log.Printf("Leaving out %d of %d expansions", len(expansions)-len(walked), len(expansions))
+	}
+	expansions = walked
 
 	failed := walk(ctx, client, expansions, &catalog)
 
@@ -129,7 +136,7 @@ func run() error {
 	return writer.Close()
 }
 
-// skippedShelves names, per game, the expansions the walk does not read, as
+// skippedShelves names, per game, the expansions the catalog leaves out, as
 // substrings of their names: Magic's vendor tokens and alters, accessories,
 // oversized promos, player cards and the marketplace's own series, whose
 // products no printing of a datastore stands for.
@@ -158,30 +165,27 @@ var skippedShelves = map[cardmarket.Game][]string{
 	},
 }
 
-// skipShelves records the game's skipped expansions in the catalog with no
-// products and returns the rest to walk. A skipped shelf keeps its name and
-// code, which the Expansions call already paid for, so a reader filing one of
-// its products from the product list still knows what shelf it is on.
-func skipShelves(game cardmarket.Game, expansions []cardmarket.Expansion,
-	catalog *cardmarket.Catalog) []cardmarket.Expansion {
-	var kept []cardmarket.Expansion
-	for _, expansion := range expansions {
-		skip := slices.ContainsFunc(skippedShelves[game], func(tag string) bool {
-			return strings.Contains(expansion.Name, tag)
-		})
-		if !skip {
-			kept = append(kept, expansion)
-			continue
-		}
-		catalog.Data.Expansions[expansion.IDExpansion] = cardmarket.CatalogExpansion{
-			Name: expansion.Name,
-			Code: expansion.SetCode,
-		}
+// thirdPartyCode is how Cardmarket codes a Magic token line nobody but its
+// maker prints, "TOK26" for Alfie's Adventure Tokens: it catches the lines
+// whose names carry none of the tags, and the ones added after them.
+var thirdPartyCode = regexp.MustCompile(`^TOK\d+$`)
+
+// skipped reports whether an expansion is left out of the game's catalog.
+// A set's own token shelf, "Modern Horizons 3: Tokens", is official and kept,
+// though the Token tag names it.
+func skipped(game cardmarket.Game, expansion cardmarket.Expansion) bool {
+	if game != cardmarket.GameMagic {
+		return false
 	}
-	if skipped := len(expansions) - len(kept); skipped > 0 {
-		log.Printf("Skipping %d of %d expansions", skipped, len(expansions))
+	if thirdPartyCode.MatchString(expansion.SetCode) {
+		return true
 	}
-	return kept
+	if strings.HasSuffix(expansion.Name, ": Tokens") {
+		return false
+	}
+	return slices.ContainsFunc(skippedShelves[game], func(tag string) bool {
+		return strings.Contains(expansion.Name, tag)
+	})
 }
 
 // unanswered is one expansion the walk could not read, and why. The reason
