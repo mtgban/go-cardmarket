@@ -77,6 +77,8 @@ func run() error {
 	catalog.Data.Expansions = make(map[int]cardmarket.CatalogExpansion, len(expansions))
 	catalog.Data.Products = map[int]cardmarket.CatalogProduct{}
 
+	expansions = skipShelves(game, expansions, &catalog)
+
 	failed := walk(ctx, client, expansions, &catalog)
 
 	// One more pass before giving up on them: the 5xx that fails an
@@ -125,6 +127,61 @@ func run() error {
 	// Close is where a buffered cloud writer commits the upload, so it
 	// reports whether anything was durably written at all
 	return writer.Close()
+}
+
+// skippedShelves names, per game, the expansions the walk does not read, as
+// substrings of their names: Magic's vendor tokens and alters, accessories,
+// oversized promos, player cards and the marketplace's own series, whose
+// products no printing of a datastore stands for.
+var skippedShelves = map[cardmarket.Game][]string{
+	cardmarket.GameMagic: {
+		"Boomer Tokns",
+		"Filler Cards",
+		"For Science!",
+		"Gatherers' Tavern",
+		"GnD Cards",
+		"Heroes of the Realm",
+		"Mana ZenZero",
+		"MKM Series",
+		"Oversized",
+		"Player Cards",
+		"Revista Serra Promos",
+		"Rk post Products",
+		"SAWATARIX",
+		"Starcity",
+		"Street Clans",
+		"Three for One",
+		"Token",
+		"TokyoMTG Products",
+		"Ultra-Pro Puzzle Cards",
+		"Vanlubow",
+	},
+}
+
+// skipShelves records the game's skipped expansions in the catalog with no
+// products and returns the rest to walk. A skipped shelf keeps its name and
+// code, which the Expansions call already paid for, so a reader filing one of
+// its products from the product list still knows what shelf it is on.
+func skipShelves(game cardmarket.Game, expansions []cardmarket.Expansion,
+	catalog *cardmarket.Catalog) []cardmarket.Expansion {
+	var kept []cardmarket.Expansion
+	for _, expansion := range expansions {
+		skip := slices.ContainsFunc(skippedShelves[game], func(tag string) bool {
+			return strings.Contains(expansion.Name, tag)
+		})
+		if !skip {
+			kept = append(kept, expansion)
+			continue
+		}
+		catalog.Data.Expansions[expansion.IDExpansion] = cardmarket.CatalogExpansion{
+			Name: expansion.Name,
+			Code: expansion.SetCode,
+		}
+	}
+	if skipped := len(expansions) - len(kept); skipped > 0 {
+		log.Printf("Skipping %d of %d expansions", skipped, len(expansions))
+	}
+	return kept
 }
 
 // unanswered is one expansion the walk could not read, and why. The reason
