@@ -296,9 +296,10 @@ same names the `b2` command line uses, so one pair of credentials works for
 both.
 
 A few of Magic's shelves are left out of the catalog altogether: the vendor
-tokens and alters, accessories, oversized promos, player cards and the
-marketplace's own series, matched by name in `skippedShelves` or by a `TOK<n>` code. A set's own
-`<Set>: Tokens` shelf is kept.
+tokens and alters, accessories, the box toppers and 9x12 oversized promos,
+player cards and the marketplace's own series, matched by name in
+`skippedShelves` or by a `TOK<n>` code. A set's own `<Set>: Tokens` shelf and
+the Judge Program Tokens are kept.
 
 An expansion the API will not answer for gets one more try at the end of the
 walk before it is carried over. The run fails, rather than publish a catalog

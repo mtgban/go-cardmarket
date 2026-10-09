@@ -150,7 +150,8 @@ var skippedShelves = map[cardmarket.Game][]string{
 		"Heroes of the Realm",
 		"Mana ZenZero",
 		"MKM Series",
-		"Oversized",
+		"Oversized 9x12 Promos",
+		"Oversized Box Toppers",
 		"Player Cards",
 		"Revista Serra Promos",
 		"Rk post Products",
@@ -171,8 +172,8 @@ var skippedShelves = map[cardmarket.Game][]string{
 var thirdPartyCode = regexp.MustCompile(`^TOK\d+$`)
 
 // skipped reports whether an expansion is left out of the game's catalog.
-// A set's own token shelf, "Modern Horizons 3: Tokens", is official and kept,
-// though the Token tag names it.
+// A set's own token shelf, "Modern Horizons 3: Tokens", and the judge tokens
+// are official and kept, though the Token tag names them.
 func skipped(game cardmarket.Game, expansion cardmarket.Expansion) bool {
 	if game != cardmarket.GameMagic {
 		return false
@@ -180,7 +181,7 @@ func skipped(game cardmarket.Game, expansion cardmarket.Expansion) bool {
 	if thirdPartyCode.MatchString(expansion.SetCode) {
 		return true
 	}
-	if strings.HasSuffix(expansion.Name, ": Tokens") {
+	if strings.HasSuffix(expansion.Name, ": Tokens") || expansion.Name == "Judge Program Tokens" {
 		return false
 	}
 	return slices.ContainsFunc(skippedShelves[game], func(tag string) bool {
