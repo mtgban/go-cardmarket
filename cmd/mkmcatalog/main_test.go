@@ -303,7 +303,8 @@ func TestCarryOverWarnsOnTheRun(t *testing.T) {
 }
 
 // Vendor lines are left out by name or by their TOK code, a set's own token
-// shelf is kept, and no other game loses a shelf to Magic's tags.
+// shelf, the judge tokens and the 6x9 oversized promos are kept, and no
+// other game loses a shelf to Magic's tags.
 func TestSkipped(t *testing.T) {
 	for _, tt := range []struct {
 		game      cardmarket.Game
@@ -314,6 +315,9 @@ func TestSkipped(t *testing.T) {
 		{cardmarket.GameMagic, cardmarket.Expansion{Name: "Dobi TOKENS", SetCode: "TOK39"}, true},
 		{cardmarket.GameMagic, cardmarket.Expansion{Name: "Rk post Products", SetCode: "RKP"}, true},
 		{cardmarket.GameMagic, cardmarket.Expansion{Name: "Modern Horizons 3: Tokens", SetCode: "TMH3"}, false},
+		{cardmarket.GameMagic, cardmarket.Expansion{Name: "Judge Program Tokens", SetCode: "JPT"}, false},
+		{cardmarket.GameMagic, cardmarket.Expansion{Name: "Oversized Box Toppers", SetCode: "OBT"}, true},
+		{cardmarket.GameMagic, cardmarket.Expansion{Name: "Oversized 6x9 Promos", SetCode: "OS69"}, false},
 		{cardmarket.GameMagic, cardmarket.Expansion{Name: "Alpha", SetCode: "LEA"}, false},
 		{cardmarket.GamePokemon, cardmarket.Expansion{Name: "Pokemon Tokens", SetCode: "TOK1"}, false},
 	} {
