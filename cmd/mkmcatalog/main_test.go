@@ -136,6 +136,35 @@ func TestCarryOverKeepsANewExpansion(t *testing.T) {
 	}
 }
 
+// A product the previous catalog filed under the unanswered shelf may have
+// moved since to one this walk read: today's entry is the one that stands,
+// and the carry still brings over the rest of the shelf.
+func TestCarryOverKeepsAFreshProduct(t *testing.T) {
+	previous := cardmarket.Catalog{}
+	previous.Data.Products = map[int]cardmarket.CatalogProduct{
+		99: {ExpansionID: 1645, Name: "Moved Since"},
+		10: {ExpansionID: 1645, Name: "Pikachu"},
+	}
+	path := writePrevious(t, previous)
+
+	catalog := freshCatalog()
+	failed := []unanswered{{
+		expansion: cardmarket.Expansion{IDExpansion: 1645, Name: "Pokémon Products", SetCode: "PP"},
+		err:       errors.New("cardmarket: 503 Service Unavailable after 4 attempt(s)"),
+	}}
+
+	if err := carryOver(context.Background(), path, failed, &catalog); err != nil {
+		t.Fatalf("carryOver() = %v", err)
+	}
+
+	if got := catalog.Data.Products[99]; got.ExpansionID != 1 || got.Name != "Freshly Walked" {
+		t.Errorf("product 99 = %+v, want the one this walk read", got)
+	}
+	if got := catalog.Data.Products[10]; got.ExpansionID != 1645 || got.Name != "Pikachu" {
+		t.Errorf("product 10 = %+v, want it carried over", got)
+	}
+}
+
 // Without a -previous there is nothing to carry from, and the error has to
 // say which expansions were lost and why, not only that some were.
 func TestCarryOverWithoutPrevious(t *testing.T) {

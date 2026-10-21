@@ -318,6 +318,12 @@ func carryOver(ctx context.Context, path string, failed []unanswered,
 		if !wanted[product.ExpansionID] {
 			continue
 		}
+		// A product yesterday filed under this shelf and today's walk
+		// read under another has moved, and today's entry is the one
+		// that is right.
+		if _, fresh := catalog.Data.Products[id]; fresh {
+			continue
+		}
 		catalog.Data.Products[id] = product
 		carried[product.ExpansionID]++
 	}
