@@ -165,6 +165,37 @@ func TestCarryOverKeepsAFreshProduct(t *testing.T) {
 	}
 }
 
+// A shelf whose products the previous catalog has, but which this walk all
+// read under other shelves, is old: the log must not send anyone looking for
+// a shelf added since the last good walk.
+func TestCarryOverNamesAMovedShelf(t *testing.T) {
+	previous := cardmarket.Catalog{}
+	previous.Data.Products = map[int]cardmarket.CatalogProduct{
+		99: {ExpansionID: 1645, Name: "Moved Since"},
+	}
+	path := writePrevious(t, previous)
+
+	var out strings.Builder
+	annotations = &out
+	t.Cleanup(func() { annotations = nil })
+
+	catalog := freshCatalog()
+	failed := []unanswered{{
+		expansion: cardmarket.Expansion{IDExpansion: 1645, Name: "Pokémon Products", SetCode: "PP"},
+		err:       errors.New("503"),
+	}}
+	if err := carryOver(context.Background(), path, failed, &catalog); err != nil {
+		t.Fatalf("carryOver() = %v", err)
+	}
+
+	if strings.Contains(out.String(), "added since") {
+		t.Errorf("warning calls a moved shelf new: %q", out.String())
+	}
+	if !strings.Contains(out.String(), "its 1 products") || !strings.Contains(out.String(), "read under other shelves") {
+		t.Errorf("warning does not say the shelf's products moved: %q", out.String())
+	}
+}
+
 // Without a -previous there is nothing to carry from, and the error has to
 // say which expansions were lost and why, not only that some were.
 func TestCarryOverWithoutPrevious(t *testing.T) {
