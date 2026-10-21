@@ -277,21 +277,35 @@ func (mkm *Client) get(ctx context.Context, link string, out any) (string, error
 // own cap). Capped reports the latter case: total is 1000, the highest
 // figure the API ever reports, not the real count, which is unknowable past
 // it. An empty or unrecognized header reports ok=false rather than a
-// misleading zero.
+// misleading zero, and so does one no listing could have sent: a signed or
+// out of range number, or a range that ends before it starts.
 func ParseContentRange(header string) (total int, capped bool, ok bool) {
-	_, totalPart, found := strings.Cut(header, "/")
-	if !found || totalPart == "" {
+	rangePart, totalPart, found := strings.Cut(header, "/")
+	if !found {
 		return 0, false, false
 	}
-	if strings.HasSuffix(totalPart, "+") {
-		capped = true
-		totalPart = strings.TrimSuffix(totalPart, "+")
+	totalPart, capped = strings.CutSuffix(totalPart, "+")
+	startPart, endPart, found := strings.Cut(rangePart, "-")
+	if !found {
+		return 0, false, false
 	}
-	total, err := strconv.Atoi(totalPart)
-	if err != nil {
+	start, startOK := parseCount(startPart)
+	end, endOK := parseCount(endPart)
+	total, totalOK := parseCount(totalPart)
+	if !startOK || !endOK || !totalOK || start > end {
 		return 0, false, false
 	}
 	return total, capped, true
+}
+
+// parseCount reads a Content-Range figure, which is only ever digits:
+// strconv.Atoi alone would take a sign as well.
+func parseCount(s string) (int, bool) {
+	if s == "" || strings.Trim(s, "0123456789") != "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s)
+	return n, err == nil
 }
 
 // Expansions returns every expansion of one game.
