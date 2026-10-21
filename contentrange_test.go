@@ -19,6 +19,16 @@ func TestParseContentRange(t *testing.T) {
 		{"empty header", "", 0, false, false},
 		{"missing the total segment", "0-29", 0, false, false},
 		{"unparseable total", "0-29/many", 0, false, false},
+		{"negative total", "0-1/-5", 0, false, false},
+		{"signed total", "0-1/+7", 0, false, false},
+		{"negative capped total", "0-1/-5+", 0, false, false},
+		{"total past int", "0-29/99999999999999999999", 0, false, false},
+		{"spaced total", "0-29/ 33", 0, false, false},
+		{"no range", "/33", 0, false, false},
+		{"start past end", "29-0/33", 0, false, false},
+		{"negative start", "-1-29/33", 0, false, false},
+		{"signed end", "0-+29/33", 0, false, false},
+		{"end past int", "0-99999999999999999999/33", 0, false, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
