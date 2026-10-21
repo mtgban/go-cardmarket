@@ -314,6 +314,7 @@ func carryOver(ctx context.Context, path string, failed []unanswered,
 		wanted[one.expansion.IDExpansion] = true
 	}
 	carried := make(map[int]int, len(failed))
+	moved := make(map[int]int, len(failed))
 	for id, product := range old.Data.Products {
 		if !wanted[product.ExpansionID] {
 			continue
@@ -322,6 +323,7 @@ func carryOver(ctx context.Context, path string, failed []unanswered,
 		// read under another has moved, and today's entry is the one
 		// that is right.
 		if _, fresh := catalog.Data.Products[id]; fresh {
+			moved[product.ExpansionID]++
 			continue
 		}
 		catalog.Data.Products[id] = product
@@ -345,6 +347,13 @@ func carryOver(ctx context.Context, path string, failed []unanswered,
 		}
 		catalog.Meta.Unwalked = append(catalog.Meta.Unwalked, id)
 
+		if carried[id] == 0 && moved[id] > 0 {
+			// The shelf is old, it only has nothing left that is its own.
+			warnf("Expansion %d %q went unanswered (%v), and its %d products in %s were all "+
+				"read under other shelves this walk, so it is in this catalog with no products%s",
+				id, one.expansion.Name, one.err, moved[id], path, stuck)
+			continue
+		}
 		if carried[id] == 0 {
 			warnf("Expansion %d %q went unanswered (%v) and %s has nothing for it, "+
 				"so it is in this catalog with no products - a shelf added since the last good walk%s",
