@@ -6,6 +6,7 @@
 package cardmarket
 
 import (
+	"cmp"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -17,7 +18,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -623,10 +623,16 @@ type authTransport struct {
 // byte-value order would put "13" first. Sending them in the wire's own
 // order authenticated only when that happened to already be ascending; the
 // same values reversed on the wire, signed in that same (now descending)
-// order, came back 401. A value that doesn't parse as a plain integer falls
-// back to byte-value sorting, since nothing suggests this normalization
-// extends past the one parameter (a numeric id) it's ever been observed to
-// accept repeated at all.
+// order, came back 401. A value that doesn't parse as a plain integer sorts
+// by its encoded bytes, as RFC 5849 has it, since nothing suggests this
+// normalization extends past the one parameter (a numeric id) it's ever been
+// observed to accept repeated at all.
+//
+// The order has to be total, or the signed order follows the wire's after
+// all: integers come first, everything else after them, and two integers
+// equal in value ("01" and "1") by their bytes. Where integers sit against
+// other values has never been seen live, since no mixed key has been sent;
+// what matters is that there is one answer.
 //
 // Currently unreachable through this package's own exported calls
 // (Client.Articles sends each filter once), but a latent trap for any future
@@ -634,18 +640,34 @@ type authTransport struct {
 func addQueryParams(q url.Values, query url.Values) {
 	for key, values := range query {
 		sorted := slices.Clone(values)
-		sort.Slice(sorted, func(i, j int) bool {
-			a, aErr := strconv.Atoi(sorted[i])
-			b, bErr := strconv.Atoi(sorted[j])
-			if aErr == nil && bErr == nil {
-				return a < b
-			}
-			return sorted[i] < sorted[j]
-		})
+		slices.SortFunc(sorted, compareQueryValues)
 		for _, value := range sorted {
 			q.Add(key, value)
 		}
 	}
+}
+
+// compareQueryValues orders a repeated key's values for signing, as
+// addQueryParams describes.
+func compareQueryValues(a, b string) int {
+	x, xErr := strconv.Atoi(a)
+	y, yErr := strconv.Atoi(b)
+	switch {
+	case xErr == nil && yErr == nil:
+		if c := cmp.Compare(x, y); c != 0 {
+			return c
+		}
+	case xErr == nil:
+		return -1
+	case yErr == nil:
+		return 1
+	}
+	return strings.Compare(encodeQueryValue(a), encodeQueryValue(b))
+}
+
+// encodeQueryValue is a value as the signature base string carries it.
+func encodeQueryValue(value string) string {
+	return strings.ReplaceAll(url.QueryEscape(value), "+", "%20")
 }
 
 func (t *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
