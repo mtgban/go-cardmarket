@@ -55,13 +55,13 @@ func TestAddQueryParamsSortsRepeatedValuesNumerically(t *testing.T) {
 }
 
 // A value that isn't a plain integer can't be numerically compared, so it
-// falls back to byte-value sorting - the one thing every value sorts by
-// unambiguously, and the same rule RFC 5849 itself specifies.
+// falls back to sorting by its encoded bytes - the one thing every value
+// sorts by unambiguously, and the same rule RFC 5849 itself specifies.
 func TestAddQueryParamsFallsBackToByteValueForNonNumeric(t *testing.T) {
 	q := url.Values{}
 	addQueryParams(q, url.Values{"lang": {"fr", "de", "en"}})
 	if got := q["lang"]; !slices.Equal(got, []string{"de", "en", "fr"}) {
-		t.Errorf("lang = %v, want byte-value order [de en fr]", got)
+		t.Errorf("lang = %v, want encoded-byte order [de en fr]", got)
 	}
 }
 
@@ -88,6 +88,9 @@ func TestAddQueryParamsOrderIgnoresTheWire(t *testing.T) {
 		{"-1", "01", "1", "a", "b"},
 		// Encoded, "é" is "%C3%A9", which sorts before "z".
 		{"é", "z"},
+		// Encoded, "/" is "%2F", and "%" sorts before ".", so the encoding
+		// reorders even values whose raw bytes are all ASCII.
+		{"a/", "a."},
 	}
 	for _, want := range tests {
 		for _, wire := range permutations(want) {

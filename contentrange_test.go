@@ -26,6 +26,10 @@ func TestParseContentRange(t *testing.T) {
 		{"spaced total", "0-29/ 33", 0, false, false},
 		{"no range", "/33", 0, false, false},
 		{"start past end", "29-0/33", 0, false, false},
+		// RFC 9110 calls a range ending before it starts invalid, and
+		// Cardmarket answers a page past the end with a 204 rather than this
+		// empty-page shape, so it is refused with the rest.
+		{"empty page past the end", "33-32/33", 0, false, false},
 		{"negative start", "-1-29/33", 0, false, false},
 		{"signed end", "0-+29/33", 0, false, false},
 		{"end past int", "0-99999999999999999999/33", 0, false, false},
