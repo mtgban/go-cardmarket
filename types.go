@@ -17,8 +17,8 @@ import "strings"
 // The documentation does not publish this table - /games answers it at
 // runtime - so these are read off the published catalog files, whose paths
 // are keyed by exactly this number: products_singles_24.json shelves "Gundam
-// Single". TestGameIDs pins them, since a game inserted in the wrong place
-// would renumber every game after it and price one game from another's file.
+// Single". The sealed-only games from Naruto Mythos on publish no file, and
+// take their numbers from Cardmarket's own list.
 type Game int
 
 // The games, in the order the API numbers them. The blanks are numbers it
@@ -48,6 +48,15 @@ const (
 	GameRiftbound
 	GameCyberpunk
 	GameGundam
+	GameSorceryContestedRealm
+	GameNarutoMythos
+	GameShadowverseEvolve
+	GameGrandArchive
+	GameHololive
+	GamePalworld
+	GameElestrals
+	GameGodzilla
+	GameBluthelden
 )
 
 // gameNames is the spelling each game takes in a storefront address, read
@@ -55,28 +64,37 @@ const (
 // ("FoW", "WoW", "Vanguard", "Spoils") are not shortenings this package
 // invented, and the full names are not interchangeable with them.
 var gameNames = map[Game]string{
-	GameMagic:             "Magic",
-	GameWorldOfWarcraft:   "WoW",
-	GameYuGiOh:            "YuGiOh",
-	GameTheSpoils:         "Spoils",
-	GamePokemon:           "Pokemon",
-	GameForceOfWill:       "FoW",
-	GameCardfightVanguard: "Vanguard",
-	GameFinalFantasy:      "FinalFantasy",
-	GameWeissSchwarz:      "WeissSchwarz",
-	GameDragoborne:        "Dragoborne",
-	GameMyLittlePony:      "MyLittlePony",
-	GameDragonBallSuper:   "DragonBallSuper",
-	GameStarWarsDestiny:   "StarWarsDestiny",
-	GameFleshAndBlood:     "FleshAndBlood",
-	GameDigimon:           "Digimon",
-	GameOnePiece:          "OnePiece",
-	GameLorcana:           "Lorcana",
-	GameBattleSpiritsSaga: "BattleSpiritsSaga",
-	GameStarWarsUnlimited: "StarWarsUnlimited",
-	GameRiftbound:         "Riftbound",
-	GameCyberpunk:         "Cyberpunk",
-	GameGundam:            "Gundam",
+	GameMagic:                 "Magic",
+	GameWorldOfWarcraft:       "WoW",
+	GameYuGiOh:                "YuGiOh",
+	GameTheSpoils:             "Spoils",
+	GamePokemon:               "Pokemon",
+	GameForceOfWill:           "FoW",
+	GameCardfightVanguard:     "Vanguard",
+	GameFinalFantasy:          "FinalFantasy",
+	GameWeissSchwarz:          "WeissSchwarz",
+	GameDragoborne:            "Dragoborne",
+	GameMyLittlePony:          "MyLittlePony",
+	GameDragonBallSuper:       "DragonBallSuper",
+	GameStarWarsDestiny:       "StarWarsDestiny",
+	GameFleshAndBlood:         "FleshAndBlood",
+	GameDigimon:               "Digimon",
+	GameOnePiece:              "OnePiece",
+	GameLorcana:               "Lorcana",
+	GameBattleSpiritsSaga:     "BattleSpiritsSaga",
+	GameStarWarsUnlimited:     "StarWarsUnlimited",
+	GameRiftbound:             "Riftbound",
+	GameCyberpunk:             "Cyberpunk",
+	GameGundam:                "Gundam",
+	GameSorceryContestedRealm: "Sorcery",
+	GameNarutoMythos:          "NarutoMythos",
+	GameShadowverseEvolve:     "Shadowverse",
+	GameGrandArchive:          "GrandArchive",
+	GameHololive:              "Hololive",
+	GamePalworld:              "Palworld",
+	GameElestrals:             "Elestrals",
+	GameGodzilla:              "Godzilla",
+	GameBluthelden:            "Bluthelden",
 }
 
 // GameName returns the game as Cardmarket spells it in an address, or "" for
