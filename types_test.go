@@ -11,7 +11,9 @@ import (
 // turns that into a failing test rather than a game quietly priced from
 // another game's catalog file. Each number here was read off the published
 // catalog at downloads.s3.cardmarket.com: the file for 24 shelves "Gundam
-// Single", 23's shelves "Cyberpunk Single".
+// Single", 23's shelves "Cyberpunk Single", 25's "Sorcery: Contested Realm
+// Single". The sealed-only games, 26 to 33, publish no file and are pinned
+// to Cardmarket's own list.
 //
 // A table of pairs rather than a map: two constants that collide are the
 // failure being guarded against, and a map literal would not compile.
@@ -43,6 +45,15 @@ func TestGameIDs(t *testing.T) {
 		{"Riftbound", GameRiftbound, 22},
 		{"Cyberpunk", GameCyberpunk, 23},
 		{"Gundam", GameGundam, 24},
+		{"SorceryContestedRealm", GameSorceryContestedRealm, 25},
+		{"NarutoMythos", GameNarutoMythos, 26},
+		{"ShadowverseEvolve", GameShadowverseEvolve, 27},
+		{"GrandArchive", GameGrandArchive, 28},
+		{"Hololive", GameHololive, 29},
+		{"Palworld", GamePalworld, 30},
+		{"Elestrals", GameElestrals, 31},
+		{"Godzilla", GameGodzilla, 32},
+		{"Bluthelden", GameBluthelden, 33},
 	}
 	for _, id := range ids {
 		if id.got != id.want {
